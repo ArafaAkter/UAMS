@@ -1,0 +1,35 @@
+<?php
+// logout.php
+// Completely destroys session, invalidates cookie, prevents cache
+
+require_once 'config/config.php';
+require_once 'includes/functions.php';
+
+// Prevent caching of this page and any protected pages after logout
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Cache-Control: post-check=0, pre-check=0', false);
+header('Pragma: no-cache');
+header('Expires: Thu, 01 Jan 1970 00:00:00 GMT');
+
+// Unset all session variables
+$_SESSION = [];
+
+// Delete session cookie explicitly
+if (ini_get('session.use_cookies')) {
+    $params = session_get_cookie_params();
+    setcookie(
+        session_name(),
+        '',
+        time() - 42000,
+        $params['path'],
+        $params['domain'],
+        $params['secure'],
+        $params['httponly']
+    );
+}
+
+// Destroy the session
+session_destroy();
+
+// Redirect to login page
+redirect('login.php');

@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Documents - University Application Management System</title>
+    <link rel="stylesheet" href="http://localhost/UAMS/assets/css/style.css">
+</head>
+<body>
+    <header class="main-header">
+        <div class="container header-container">
+            <a href="http://localhost/UAMS/" class="logo">
+                <span class="logo-icon">🎓</span>
+                <span class="logo-text">University Application Management System</span>
+            </a>
+            <nav class="main-nav">
+                                    <span class="welcome-msg">Welcome, Md. Hasan Ali</span>
+                    <a href="http://localhost/UAMS/logout.php" class="btn btn-logout">Logout</a>
+                            </nav>
+        </div>
+    </header>
+    <main class="main-content">
+<div class="dashboard-container">
+    
+<aside class="sidebar">
+    <div class="sidebar-header">
+        <h2>Navigation</h2>
+    </div>
+    <ul class="sidebar-nav">
+                    <li class="nav-header">Student Menu</li>
+            <li><a href="http://localhost/UAMS/student/dashboard.php" class="">Dashboard</a></li>
+            <li><a href="http://localhost/UAMS/student/applications.php" class="">My Applications</a></li>
+            <li><a href="http://localhost/UAMS/student/new_application.php" class="">Apply New Application</a></li>
+            <li><a href="http://localhost/UAMS/student/track_application.php" class="">Track Application</a></li>
+            <li><a href="http://localhost/UAMS/student/documents.php" class="active">Documents</a></li>
+            <li><a href="http://localhost/UAMS/student/payment_status.php" class="">Payment Status</a></li>
+            <li><a href="http://localhost/UAMS/student/profile.php" class="">Profile</a></li>
+            </ul>
+</aside>
+
+    <div class="dashboard-content">
+        <div class="dashboard-header">
+            <h1>Documents</h1>
+            <p>Documents uploaded for your applications</p>
+        </div>
+
+        <!-- Summary -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>2</h3>
+                <p>Total Documents</p>
+            </div>
+        </div>
+
+        <div class="dashboard-section">
+            <div class="section-header">
+                <h2>My Documents</h2>
+                <a href="http://localhost/UAMS/student/dashboard.php" class="btn btn-small">Back to Dashboard</a>
+            </div>
+
+                            <div class="table-wrapper">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Reference</th>
+                                <th>Type</th>
+                                <th>Filename</th>
+                                <th>Size</th>
+                                <th>Type</th>
+                                <th>Uploaded</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                                                            <tr>
+                                    <td>UAMS-2026-0001</td>
+                                    <td>Admission</td>
+                                    <td>photo.jpg</td>
+                                    <td>500.00 KB</td>
+                                    <td>image/jpeg</td>
+                                    <td>21 Aug 2026, 02:51 AM</td>
+                                </tr>
+                                                            <tr>
+                                    <td>UAMS-2026-0001</td>
+                                    <td>Admission</td>
+                                    <td>hsc_certificate.pdf</td>
+                                    <td>1.95 MB</td>
+                                    <td>application/pdf</td>
+                                    <td>21 Aug 2026, 02:51 AM</td>
+                                </tr>
+                                                    </tbody>
+                    </table>
+                </div>
+                    </div>
+    </div>
+</div>
+
+    </main>
+    <footer class="main-footer">
+        <div class="container">
+            <p>&copy; 2026 University Application Management System. All rights reserved.</p>
+        </div>
+    </footer>
+    <script src="http://localhost/UAMS/assets/js/main.js"></script>
+</body>
+</html>

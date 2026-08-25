@@ -1,0 +1,26 @@
+# .htaccess for University Application Management System
+
+# Prevent directory listing
+Options -Indexes
+
+# Set default charset
+AddDefaultCharset UTF-8
+
+# Enable URL rewriting (for clean URLs in future)
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /UAMS/
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+</IfModule>
+
+# Security headers
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "SAMEORIGIN"
+    Header set X-XSS-Protection "1; mode=block"
+</IfModule>
+
+# Increase upload limit (also set in php.ini)
+php_value upload_max_filesize 10M
+php_value post_max_size 10M
