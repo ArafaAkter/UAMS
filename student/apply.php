@@ -138,6 +138,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $selected_type) {
         $new_app_id = db_last_insert_id($conn, 'seq_app_id');
 
         if ($new_app_id) {
+            // Auto-assign a reviewer from the same department (round-robin: pick reviewer with fewest assigned applications)
+            $student_dept = $user['DEPARTMENT'] ?? '';
+            $reviewer = null;
+            if ($student_dept) {
+                $reviewer = db_fetch_one($conn, "
+                    SELECT u.user_id, COUNT(a.application_id) as app_count
+                    FROM USERS u
+                    LEFT JOIN APPLICATIONS a ON u.user_id = a.reviewer_id
+                    WHERE u.role = 'reviewer' AND u.is_active = 'Y' AND u.department = :dept
+                    GROUP BY u.user_id
+                    ORDER BY app_count ASC
+                ", ['dept' => $student_dept]);
+            }
+
+            if ($reviewer) {
+                db_query($conn, "
+                    UPDATE APPLICATIONS SET reviewer_id = :rid WHERE application_id = :app_id
+                ", [
+                    'rid' => $reviewer['USER_ID'],
+                    'app_id' => $new_app_id
+                ]);
+            }
+
             // Insert initial status history record
             db_query($conn, "
                 INSERT INTO APPLICATION_STATUS_HISTORY (application_id, status_id, changed_by, comments)

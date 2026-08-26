@@ -35,8 +35,9 @@ $reviews = db_fetch_all($conn, "
     JOIN APPLICATION_STATUS s ON a.current_status_id = s.status_id
     JOIN USERS u ON a.student_id = u.user_id
     WHERE r.reviewer_id = :rid
+    AND u.department = :reviewer_dept
     ORDER BY r.review_date DESC
-", ['rid' => $reviewer_id]);
+", ['rid' => $reviewer_id, 'reviewer_dept' => $user['DEPARTMENT']]);
 
 foreach ($reviews as &$r) {
     $r['COMMENTS'] = clob_to_string($r['COMMENTS']);

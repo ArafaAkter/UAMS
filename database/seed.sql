@@ -29,6 +29,12 @@ VALUES (5, 'student2@uni.edu', '$2y$10$vM3axFVfr.VxZLtmB7xLAua4YGBWn.uC7YZx/qqeG
 INSERT INTO USERS (user_id, email, password_hash, full_name, role, phone, department, is_active)
 VALUES (6, 'student3@uni.edu', '$2y$10$RUr6PujXhGNw/eQCcaB9AOXxQFcSgUiwNwzwtj0Il0EKFnOg1bJyy', 'Kamal Hossain', 'student', '01700000006', 'Physics', 'Y');
 
+INSERT INTO USERS (user_id, email, password_hash, full_name, role, phone, department, is_active)
+VALUES (7, 'reviewer3@uni.edu', '$2y$10$TestHashForEEEReviewer7777777777777777777777', 'Dr. Rubel Hossain', 'reviewer', '01700000007', 'Electrical and Electronic Engineering', 'Y');
+
+INSERT INTO USERS (user_id, email, password_hash, full_name, role, phone, department, is_active)
+VALUES (8, 'student4@uni.edu', '$2y$10$TestHashForEEEStudent888888888888888888888', 'Nadia Islam', 'student', '01700000008', 'Electrical and Electronic Engineering', 'Y');
+
 -- ============================================
 -- 2. APPLICATION_TYPES
 -- ============================================
@@ -101,6 +107,10 @@ VALUES (2, 5, 3, 'UAMS-2026-0002', 9, '{"purpose":"Higher studies abroad","desti
 INSERT INTO APPLICATIONS (application_id, student_id, type_id, reference_number, current_status_id, application_data, reviewer_id, submitted_at, created_at, updated_at)
 VALUES (3, 6, 2, 'UAMS-2026-0003', 4, '{"gpa":"3.95","previous_university":"BUET","program":"Physics","achievements":"Dean list all semesters"}', 2, SYSDATE - 3, SYSDATE - 3, SYSDATE);
 
+-- Application 4: Student4 (EEE) -> Admission -> Submitted -> Reviewer3 (EEE)
+INSERT INTO APPLICATIONS (application_id, student_id, type_id, reference_number, current_status_id, application_data, reviewer_id, submitted_at, created_at, updated_at)
+VALUES (4, 8, 1, 'UAMS-2026-0004', 2, '{"gpa":"3.7","previous_university":"BUET","program":"Electrical and Electronic Engineering","motivation":"I am interested in power systems engineering."}', 7, SYSDATE, SYSDATE, SYSDATE);
+
 -- ============================================
 -- 5. DOCUMENTS
 -- ============================================
@@ -116,6 +126,9 @@ VALUES (3, 2, 'transcript_request_form.pdf', 'app_2_doc_ghi789.pdf', 'uploads/do
 
 INSERT INTO DOCUMENTS (document_id, application_id, original_filename, stored_filename, file_path, file_size, mime_type, uploaded_by, uploaded_at)
 VALUES (4, 3, 'scholarship_essay.pdf', 'app_3_doc_jkl012.pdf', 'uploads/documents/app_3_doc_jkl012.pdf', 3072000, 'application/pdf', 6, SYSDATE - 3);
+
+INSERT INTO DOCUMENTS (document_id, application_id, original_filename, stored_filename, file_path, file_size, mime_type, uploaded_by, uploaded_at)
+VALUES (5, 4, 'hsc_certificate.pdf', 'app_4_doc_mno345.pdf', 'uploads/documents/app_4_doc_mno345.pdf', 2048000, 'application/pdf', 8, SYSDATE);
 
 -- ============================================
 -- 6. REVIEWS
@@ -182,5 +195,12 @@ VALUES (11, 3, 3, 1, 'Reviewer Dr. Ahmed Rahman assigned', SYSDATE - 2);
 
 INSERT INTO APPLICATION_STATUS_HISTORY (history_id, application_id, status_id, changed_by, comments, changed_at)
 VALUES (12, 3, 4, 2, 'Review completed with recommendation: request_info', SYSDATE);
+
+-- History for Application 4 (EEE Admission)
+INSERT INTO APPLICATION_STATUS_HISTORY (history_id, application_id, status_id, changed_by, comments, changed_at)
+VALUES (13, 4, 2, 8, 'Application submitted by student', SYSDATE);
+
+INSERT INTO APPLICATION_STATUS_HISTORY (history_id, application_id, status_id, changed_by, comments, changed_at)
+VALUES (14, 4, 3, 1, 'Reviewer Dr. Rubel Hossain assigned', SYSDATE);
 
 COMMIT;

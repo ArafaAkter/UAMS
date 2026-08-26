@@ -26,11 +26,11 @@ if ($status_filter !== '' && is_numeric($status_filter)) {
 
 // Stats scoped to this reviewer
 $stats = [];
-$stats['total'] = db_fetch_value($conn, 'SELECT COUNT(*) FROM APPLICATIONS WHERE reviewer_id = :rid', ['rid' => $reviewer_id]);
-$stats['pending_review'] = db_fetch_value($conn, 'SELECT COUNT(*) FROM APPLICATIONS WHERE reviewer_id = :rid AND current_status_id IN (2, 3, 4, 7)', ['rid' => $reviewer_id]);
-$stats['under_review'] = db_fetch_value($conn, 'SELECT COUNT(*) FROM APPLICATIONS WHERE reviewer_id = :rid AND current_status_id = 3', ['rid' => $reviewer_id]);
-$stats['approved'] = db_fetch_value($conn, 'SELECT COUNT(*) FROM APPLICATIONS WHERE reviewer_id = :rid AND current_status_id IN (5, 9)', ['rid' => $reviewer_id]);
-$stats['rejected'] = db_fetch_value($conn, 'SELECT COUNT(*) FROM APPLICATIONS WHERE reviewer_id = :rid AND current_status_id IN (6, 10)', ['rid' => $reviewer_id]);
+$stats['total'] = db_fetch_value($conn, 'SELECT COUNT(*) FROM APPLICATIONS a JOIN USERS u ON a.student_id = u.user_id WHERE a.reviewer_id = :rid AND u.department = :reviewer_dept', ['rid' => $reviewer_id, 'reviewer_dept' => $user['DEPARTMENT']]);
+$stats['pending_review'] = db_fetch_value($conn, 'SELECT COUNT(*) FROM APPLICATIONS a JOIN USERS u ON a.student_id = u.user_id WHERE a.reviewer_id = :rid AND u.department = :reviewer_dept AND a.current_status_id IN (2, 3, 4, 7)', ['rid' => $reviewer_id, 'reviewer_dept' => $user['DEPARTMENT']]);
+$stats['under_review'] = db_fetch_value($conn, 'SELECT COUNT(*) FROM APPLICATIONS a JOIN USERS u ON a.student_id = u.user_id WHERE a.reviewer_id = :rid AND u.department = :reviewer_dept AND a.current_status_id = 3', ['rid' => $reviewer_id, 'reviewer_dept' => $user['DEPARTMENT']]);
+$stats['approved'] = db_fetch_value($conn, 'SELECT COUNT(*) FROM APPLICATIONS a JOIN USERS u ON a.student_id = u.user_id WHERE a.reviewer_id = :rid AND u.department = :reviewer_dept AND a.current_status_id IN (5, 9)', ['rid' => $reviewer_id, 'reviewer_dept' => $user['DEPARTMENT']]);
+$stats['rejected'] = db_fetch_value($conn, 'SELECT COUNT(*) FROM APPLICATIONS a JOIN USERS u ON a.student_id = u.user_id WHERE a.reviewer_id = :rid AND u.department = :reviewer_dept AND a.current_status_id IN (6, 10)', ['rid' => $reviewer_id, 'reviewer_dept' => $user['DEPARTMENT']]);
 
 // Fetch applications assigned to this reviewer
 $applications = db_fetch_all($conn, "
@@ -43,9 +43,10 @@ $applications = db_fetch_all($conn, "
     JOIN APPLICATION_TYPES t ON a.type_id = t.type_id
     JOIN USERS u ON a.student_id = u.user_id
     WHERE a.reviewer_id = :rid
+    AND u.department = :reviewer_dept
     {$status_filter_clause}
     ORDER BY a.submitted_at DESC
-", $params);
+", ['rid' => $reviewer_id, 'reviewer_dept' => $user['DEPARTMENT']]);
 
 db_close($conn);
 

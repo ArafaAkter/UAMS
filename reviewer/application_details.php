@@ -7,12 +7,14 @@ require_once '../config/config.php';
 require_once '../config/database.php';
 require_once '../includes/functions.php';
 require_once '../includes/auth.php';
+require_once '../includes/csrf.php';
 require_once '../includes/header.php';
 
 require_role('reviewer');
 
 $conn = db_connect();
 $reviewer_id = current_user_id();
+$user = get_logged_in_user($conn);
 $application_id = $_GET['id'] ?? '';
 
 // Validate application_id
@@ -32,8 +34,8 @@ $application = db_fetch_one($conn, "
     JOIN APPLICATION_STATUS s ON a.current_status_id = s.status_id
     JOIN APPLICATION_TYPES t ON a.type_id = t.type_id
     JOIN USERS u ON a.student_id = u.user_id
-    WHERE a.application_id = :app_id AND a.reviewer_id = :rid
-", ['app_id' => $application_id, 'rid' => $reviewer_id]);
+    WHERE a.application_id = :app_id AND a.reviewer_id = :rid AND u.department = :reviewer_dept
+", ['app_id' => $application_id, 'rid' => $reviewer_id, 'reviewer_dept' => $user['DEPARTMENT']]);
 
 if (!$application) {
     set_flash('error', 'Application not found or not assigned to you.');
@@ -103,6 +105,61 @@ $reviews = db_fetch_all($conn, "
 
 foreach ($reviews as &$r) {
     $r['COMMENTS'] = clob_to_string($r['COMMENTS']);
+}
+
+// Handle reviewer status update
+$errors = [];
+$status_success = false;
+$allowed_status_ids = [3, 4, 7, 8]; // under_review, reviewed, needs_review, payment_pending
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reviewer_update_status'])) {
+    validate_csrf();
+
+    $new_status_id = trim($_POST['status_id'] ?? '');
+    $reviewer_comments = trim($_POST['reviewer_comments'] ?? '');
+
+    if (!is_numeric($new_status_id) || !in_array((int)$new_status_id, $allowed_status_ids)) {
+        $errors['general'] = 'Invalid status selected.';
+    } elseif (empty($reviewer_comments)) {
+        $errors['reviewer_comments'] = 'Comments are required when updating status.';
+    } else {
+        $status = db_fetch_one($conn, "SELECT status_code, status_name FROM APPLICATION_STATUS WHERE status_id = :sid", ['sid' => $new_status_id]);
+        if (!$status) {
+            $errors['general'] = 'Invalid status selected.';
+        } else {
+            // Insert status history
+            db_query($conn, "
+                INSERT INTO APPLICATION_STATUS_HISTORY (application_id, status_id, changed_by, comments, changed_at)
+                VALUES (:app_id, :sid, :rid, :comments, SYSDATE)
+            ", [
+                'app_id' => $application_id,
+                'sid' => $new_status_id,
+                'rid' => $reviewer_id,
+                'comments' => $reviewer_comments
+            ]);
+
+            // Update application status
+            db_query($conn, "
+                UPDATE APPLICATIONS SET current_status_id = :sid, updated_at = SYSDATE
+                WHERE application_id = :app_id
+            ", ['sid' => $new_status_id, 'app_id' => $application_id]);
+
+            $status_success = true;
+
+            // Refresh application data for display
+            $application = db_fetch_one($conn, "
+                SELECT a.application_id, a.reference_number, a.submitted_at, a.updated_at, a.current_status_id, a.application_data, a.reviewer_id,
+                       s.status_code, s.status_name, s.is_final,
+                       t.type_id, t.type_code, t.type_name, t.description as type_description, t.requires_payment, t.fee_amount,
+                       u.user_id as student_id, u.full_name as student_name, u.email as student_email, u.phone as student_phone, u.department as student_department
+                FROM APPLICATIONS a
+                JOIN APPLICATION_STATUS s ON a.current_status_id = s.status_id
+                JOIN APPLICATION_TYPES t ON a.type_id = t.type_id
+                JOIN USERS u ON a.student_id = u.user_id
+                WHERE a.application_id = :app_id AND a.reviewer_id = :rid AND u.department = :reviewer_dept
+            ", ['app_id' => $application_id, 'rid' => $reviewer_id, 'reviewer_dept' => $user['DEPARTMENT']]);
+        }
+    }
 }
 
 db_close($conn);
@@ -211,6 +268,49 @@ function rec_badge($rec) {
             <?php if (empty($reviews)): ?>
                 <a href="<?php echo base_url('reviewer/review_application.php?id=' . $application['APPLICATION_ID']); ?>" class="btn btn-small btn-primary">Start Review</a>
             <?php endif; ?>
+        </div>
+
+        <!-- Reviewer Status Update -->
+        <div class="dashboard-section">
+            <div class="section-header">
+                <h2>Update Application Status</h2>
+            </div>
+
+            <?php if ($status_success): ?>
+                <div class="alert alert-success">Status updated successfully.</div>
+            <?php endif; ?>
+            <?php if (isset($errors['general'])): ?>
+                <div class="alert alert-error"><?php echo e($errors['general']); ?></div>
+            <?php endif; ?>
+
+            <form method="POST" action="<?php echo base_url('reviewer/application_details.php?id=' . $application['APPLICATION_ID']); ?>">
+                <input type="hidden" name="csrf_token" value="<?php echo e(csrf_token()); ?>">
+                <input type="hidden" name="reviewer_update_status" value="1">
+
+                <div class="form-group">
+                    <label for="status_id">New Status *</label>
+                    <select id="status_id" name="status_id" required
+                            class="<?php echo isset($errors['status_id']) ? 'input-error' : ''; ?>">
+                        <option value="">-- Select status --</option>
+                        <option value="3" <?php echo ($application['CURRENT_STATUS_ID'] == 3) ? 'selected' : ''; ?>>Under Review</option>
+                        <option value="4" <?php echo ($application['CURRENT_STATUS_ID'] == 4) ? 'selected' : ''; ?>>Reviewed</option>
+                        <option value="7" <?php echo ($application['CURRENT_STATUS_ID'] == 7) ? 'selected' : ''; ?>>Needs More Information</option>
+                        <option value="8" <?php echo ($application['CURRENT_STATUS_ID'] == 8) ? 'selected' : ''; ?>>Payment Pending</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="reviewer_comments">Reviewer Comments *</label>
+                    <textarea id="reviewer_comments" name="reviewer_comments" rows="3" required
+                              class="<?php echo isset($errors['reviewer_comments']) ? 'input-error' : ''; ?>"
+                              placeholder="Reason for status change..."><?php echo e($_POST['reviewer_comments'] ?? ''); ?></textarea>
+                    <?php if (isset($errors['reviewer_comments'])): ?>
+                        <span class="error-text"><?php echo e($errors['reviewer_comments']); ?></span>
+                    <?php endif; ?>
+                </div>
+
+                <button type="submit" class="btn btn-primary">Update Status</button>
+            </form>
         </div>
 
         <!-- Student Information -->

@@ -16,7 +16,7 @@ define('DB_HOST', 'localhost');
 define('DB_PORT', '1521');
 define('DB_SERVICE', 'xe');        // Oracle XE service name (lowercase as registered with listener)
 define('DB_USERNAME', 'system');   // Oracle XE default admin user
-define('DB_PASSWORD', 'a12345');   // Oracle XE default password
+define('DB_PASSWORD', 'a123456');   // Oracle XE default password
 
 // ============================================
 // CONNECTION

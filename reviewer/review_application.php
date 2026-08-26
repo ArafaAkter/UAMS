@@ -34,8 +34,8 @@ $application = db_fetch_one($conn, "
     JOIN APPLICATION_STATUS s ON a.current_status_id = s.status_id
     JOIN APPLICATION_TYPES t ON a.type_id = t.type_id
     JOIN USERS u ON a.student_id = u.user_id
-    WHERE a.application_id = :app_id AND a.reviewer_id = :rid
-", ['app_id' => $application_id, 'rid' => $reviewer_id]);
+    WHERE a.application_id = :app_id AND a.reviewer_id = :rid AND u.department = :reviewer_dept
+", ['app_id' => $application_id, 'rid' => $reviewer_id, 'reviewer_dept' => $user['DEPARTMENT']]);
 
 if (!$application) {
     set_flash('error', 'Application not found or not assigned to you.');
@@ -49,12 +49,6 @@ $existing_review = db_fetch_one($conn, "
     WHERE application_id = :app_id AND reviewer_id = :rid
 ", ['app_id' => $application_id, 'rid' => $reviewer_id]);
 
-if ($existing_review) {
-    set_flash('error', 'You have already reviewed this application.');
-    db_close($conn);
-    redirect('reviewer/application_details.php?id=' . $application_id);
-}
-
 // Handle form submission
 $errors = [];
 $success = false;
@@ -62,10 +56,16 @@ $success = false;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     validate_csrf();
 
+    $new_status_id = trim($_POST['status_id'] ?? '');
     $recommendation = trim($_POST['recommendation'] ?? '');
     $comments = trim($_POST['comments'] ?? '');
 
+    $allowed_status_ids = [3, 4, 7, 8]; // under_review, reviewed, needs_review, payment_pending
     $allowed_recs = ['approve', 'reject', 'request_info'];
+
+    if (!is_numeric($new_status_id) || !in_array((int)$new_status_id, $allowed_status_ids)) {
+        $errors['status_id'] = 'Please select a valid status.';
+    }
 
     if (!in_array($recommendation, $allowed_recs)) {
         $errors['recommendation'] = 'Please select a valid recommendation.';
@@ -78,17 +78,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (empty($errors)) {
-        // Map recommendation to new application status
-        // Reviewers do NOT make final approval/rejection decisions
-        // - approve → status 4 (reviewed) - awaiting admin decision
-        // - reject → status 4 (reviewed) - reviewer recommends, admin decides
-        // - request_info → status 7 (needs_review) - student needs to provide more info
-        $status_map = [
-            'approve' => 4,      // reviewed
-            'reject' => 4,       // reviewed (admin makes final rejection)
-            'request_info' => 7  // needs_review
-        ];
-        $new_status_id = $status_map[$recommendation];
+        $new_status_id = (int)$new_status_id;
 
         // Map recommendation to human-readable labels
         $rec_labels = [
@@ -98,18 +88,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ];
         $rec_label = $rec_labels[$recommendation];
 
-        // 1. Insert REVIEWS record
-        $review_stid = db_query($conn, "
-            INSERT INTO REVIEWS (application_id, reviewer_id, recommendation, comments, review_date, created_at, updated_at)
-            VALUES (:app_id, :rid, :rec, :comments, SYSDATE, SYSDATE, SYSDATE)
-        ", [
-            'app_id' => $application_id,
-            'rid' => $reviewer_id,
-            'rec' => $recommendation,
-            'comments' => $comments
-        ]);
+        $status = db_fetch_one($conn, "SELECT status_code, status_name FROM APPLICATION_STATUS WHERE status_id = :sid", ['sid' => $new_status_id]);
+        $status_label = $status ? $status['STATUS_NAME'] : 'Unknown';
 
-        // 2. Update application status
+        if ($existing_review) {
+            // Update existing review
+            db_query($conn, "
+                UPDATE REVIEWS
+                SET recommendation = :rec, comments = :comments, updated_at = SYSDATE
+                WHERE review_id = :review_id
+            ", [
+                'rec' => $recommendation,
+                'comments' => $comments,
+                'review_id' => $existing_review['REVIEW_ID']
+            ]);
+        } else {
+            // Insert new REVIEWS record
+            db_query($conn, "
+                INSERT INTO REVIEWS (application_id, reviewer_id, recommendation, comments, review_date, created_at, updated_at)
+                VALUES (:app_id, :rid, :rec, :comments, SYSDATE, SYSDATE, SYSDATE)
+            ", [
+                'app_id' => $application_id,
+                'rid' => $reviewer_id,
+                'rec' => $recommendation,
+                'comments' => $comments
+            ]);
+        }
+
+        // Update application status
         db_query($conn, "
             UPDATE APPLICATIONS
             SET current_status_id = :status_id, updated_at = SYSDATE
@@ -119,8 +125,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'app_id' => $application_id
         ]);
 
-        // 3. Insert APPLICATION_STATUS_HISTORY
-        $history_comments = 'Review submitted: ' . $rec_label . '. Comments: ' . $comments;
+        // Insert APPLICATION_STATUS_HISTORY
+        $history_comments = 'Review updated: status set to ' . $status_label . '. Recommendation: ' . $rec_label . '. Comments: ' . $comments;
         db_query($conn, "
             INSERT INTO APPLICATION_STATUS_HISTORY (application_id, status_id, changed_by, comments, changed_at)
             VALUES (:app_id, :status_id, :rid, :comments, SYSDATE)
@@ -228,6 +234,21 @@ function rec_badge($rec) {
 
             <form method="POST" action="<?php echo base_url('reviewer/review_application.php?id=' . $application['APPLICATION_ID']); ?>">
                 <input type="hidden" name="csrf_token" value="<?php echo e(csrf_token()); ?>">
+
+                <div class="form-group">
+                    <label for="status_id">Update Status *</label>
+                    <select id="status_id" name="status_id" required
+                            class="<?php echo isset($errors['status_id']) ? 'input-error' : ''; ?>">
+                        <option value="">-- Select status --</option>
+                        <option value="3" <?php echo (($_POST['status_id'] ?? $application['CURRENT_STATUS_ID']) == 3) ? 'selected' : ''; ?>>Under Review</option>
+                        <option value="4" <?php echo (($_POST['status_id'] ?? $application['CURRENT_STATUS_ID']) == 4) ? 'selected' : ''; ?>>Reviewed</option>
+                        <option value="7" <?php echo (($_POST['status_id'] ?? $application['CURRENT_STATUS_ID']) == 7) ? 'selected' : ''; ?>>Needs More Information</option>
+                        <option value="8" <?php echo (($_POST['status_id'] ?? $application['CURRENT_STATUS_ID']) == 8) ? 'selected' : ''; ?>>Payment Pending</option>
+                    </select>
+                    <?php if (isset($errors['status_id'])): ?>
+                        <span class="error-text"><?php echo e($errors['status_id']); ?></span>
+                    <?php endif; ?>
+                </div>
 
                 <div class="form-group">
                     <label for="recommendation">Recommendation *</label>

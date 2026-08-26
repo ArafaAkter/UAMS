@@ -33,6 +33,7 @@ $assigned_apps = db_fetch_all($conn, "
     JOIN APPLICATION_TYPES t ON a.type_id = t.type_id
     JOIN USERS u ON a.student_id = u.user_id
     WHERE a.reviewer_id = :rid
+    AND u.department = :reviewer_dept
     AND a.current_status_id IN (2, 3, 4, 7)
     ORDER BY 
         CASE a.current_status_id 
@@ -43,7 +44,7 @@ $assigned_apps = db_fetch_all($conn, "
             ELSE 5 
         END,
         a.submitted_at ASC
-", ['rid' => $reviewer_id]);
+", ['rid' => $reviewer_id, 'reviewer_dept' => $user['DEPARTMENT']]);
 
 // Recent reviews
 $recent_reviews = db_fetch_all($conn, "
@@ -53,9 +54,11 @@ $recent_reviews = db_fetch_all($conn, "
     FROM REVIEWS r
     JOIN APPLICATIONS a ON r.application_id = a.application_id
     JOIN APPLICATION_TYPES t ON a.type_id = t.type_id
+    JOIN USERS u ON a.student_id = u.user_id
     WHERE r.reviewer_id = :rid
+    AND u.department = :reviewer_dept
     ORDER BY r.review_date DESC
-", ['rid' => $reviewer_id]);
+", ['rid' => $reviewer_id, 'reviewer_dept' => $user['DEPARTMENT']]);
 
 // Limit to 5 rows in PHP instead of FETCH FIRST
 $recent_reviews = array_slice($recent_reviews, 0, 5);
