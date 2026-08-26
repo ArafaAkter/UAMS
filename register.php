@@ -125,7 +125,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <div class="auth-container">
     <div class="auth-card">
         <h1>Registration</h1>
-        <p class="auth-subtitle">Create your account to start applying</p>
+        <p class="auth-subtitle">Create your account</p>
 
         <?php if (isset($errors['general'])): ?>
             <div class="alert alert-error"><?php echo e($errors['general']); ?></div>
@@ -135,7 +135,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <input type="hidden" name="csrf_token" value="<?php echo e(csrf_token()); ?>">
 
             <div class="form-group">
-                <label for="full_name">Full Name *</label>
+                <label for="full_name">Full Name</label>
                 <input type="text" id="full_name" name="full_name" required
                        value="<?php echo e($_POST['full_name'] ?? ''); ?>"
                        class="<?php echo isset($errors['full_name']) ? 'input-error' : ''; ?>">
@@ -145,7 +145,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
 
             <div class="form-group">
-                <label for="email">Email Address *</label>
+                <label for="email">Email Address</label>
                 <input type="email" id="email" name="email" required
                        value="<?php echo e($_POST['email'] ?? ''); ?>"
                        class="<?php echo isset($errors['email']) ? 'input-error' : ''; ?>">
@@ -161,7 +161,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
 
             <div class="form-group">
-                <label for="department">Department *</label>
+                <label for="department">Department</label>
                 <input type="text" id="department" name="department" required
                        value="<?php echo e($_POST['department'] ?? ''); ?>"
                        class="<?php echo isset($errors['department']) ? 'input-error' : ''; ?>">
@@ -171,7 +171,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
 
             <div class="form-group">
-                <label for="role">Register As *</label>
+                <label for="role">Register As</label>
                 <select id="role" name="role" required
                         class="<?php echo isset($errors['role']) ? 'input-error' : ''; ?>">
                     <option value="student" <?php echo (($_POST['role'] ?? 'student') === 'student') ? 'selected' : ''; ?>>Student</option>
@@ -180,7 +180,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
 
             <div class="form-group">
-                <label for="password">Password *</label>
+                <label for="password">Password</label>
                 <input type="password" id="password" name="password" required minlength="6"
                        class="<?php echo isset($errors['password']) ? 'input-error' : ''; ?>">
                 <?php if (isset($errors['password'])): ?>
@@ -189,7 +189,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
 
             <div class="form-group">
-                <label for="confirm_password">Confirm Password *</label>
+                <label for="confirm_password">Confirm Password</label>
                 <input type="password" id="confirm_password" name="confirm_password" required
                        class="<?php echo isset($errors['confirm_password']) ? 'input-error' : ''; ?>">
                 <?php if (isset($errors['confirm_password'])): ?>

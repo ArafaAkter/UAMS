@@ -193,10 +193,18 @@ function verification_badge($status) {
     $map = [
         'pending' => 'badge-warning',
         'approved' => 'badge-success',
-        'rejected' => 'badge-danger'
+        'rejected' => 'badge-danger',
+        'needs_correction' => 'badge-info'
+    ];
+    $labels = [
+        'pending' => 'Pending',
+        'approved' => 'Approved',
+        'rejected' => 'Rejected',
+        'needs_correction' => 'Needs Correction'
     ];
     $cls = $map[$status] ?? 'badge-gray';
-    return '<span class="status-badge ' . $cls . '">' . e(ucfirst($status)) . '</span>';
+    $label = $labels[$status] ?? ucfirst($status);
+    return '<span class="status-badge ' . $cls . '">' . e($label) . '</span>';
 }
 ?>
 <div class="dashboard-container">

@@ -83,6 +83,65 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
     }
 }
 
+// Handle payment status update
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_payment_status'])) {
+    validate_csrf();
+
+    $payment_id = trim($_POST['payment_id'] ?? '');
+    $new_payment_status = trim($_POST['payment_status'] ?? '');
+
+    $allowed_payment_statuses = ['pending', 'verified', 'failed'];
+
+    if (!is_numeric($payment_id) || !in_array($new_payment_status, $allowed_payment_statuses)) {
+        $errors['payment'] = 'Invalid payment or status selected.';
+    } else {
+        $payment = db_fetch_one($conn, "SELECT payment_id FROM PAYMENTS WHERE payment_id = :pid AND application_id = :app_id", ['pid' => $payment_id, 'app_id' => $application_id]);
+        if (!$payment) {
+            $errors['payment'] = 'Payment record not found for this application.';
+        } else {
+            db_query($conn, "
+                UPDATE PAYMENTS SET status = :status, verified_by = :admin_id, updated_at = SYSDATE
+                WHERE payment_id = :pid
+            ", [
+                'status' => $new_payment_status,
+                'admin_id' => $admin_id,
+                'pid' => $payment_id
+            ]);
+
+            $payment_success = true;
+        }
+    }
+}
+
+// Handle document verification status update
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_document_status'])) {
+    validate_csrf();
+
+    $document_id = trim($_POST['document_id'] ?? '');
+    $new_doc_status = trim($_POST['document_verification_status'] ?? '');
+
+    $allowed_doc_statuses = ['pending', 'approved', 'rejected', 'needs_correction'];
+
+    if (!is_numeric($document_id) || !in_array($new_doc_status, $allowed_doc_statuses)) {
+        $errors['document'] = 'Invalid document or status selected.';
+    } else {
+        $document = db_fetch_one($conn, "SELECT document_id FROM DOCUMENTS WHERE document_id = :did AND application_id = :app_id", ['did' => $document_id, 'app_id' => $application_id]);
+        if (!$document) {
+            $errors['document'] = 'Document not found for this application.';
+        } else {
+            db_query($conn, "
+                UPDATE DOCUMENTS SET verification_status = :status
+                WHERE document_id = :did
+            ", [
+                'status' => $new_doc_status,
+                'did' => $document_id
+            ]);
+
+            $document_success = true;
+        }
+    }
+}
+
 // Decode application data
 $app_data = [];
 if ($application['APPLICATION_DATA']) {
@@ -329,7 +388,7 @@ function payment_status_badge($status) {
                                     <td><?php echo e($doc['UPLOADED_BY_NAME']); ?></td>
                                     <td><?php echo e(number_format($doc['FILE_SIZE'] / 1024, 2)); ?> KB</td>
                                     <td><?php echo e($doc['MIME_TYPE']); ?></td>
-                                    <td><span class="status-badge badge-<?php echo e($doc['VERIFICATION_STATUS'] === 'approved' ? 'success' : ($doc['VERIFICATION_STATUS'] === 'rejected' ? 'danger' : 'warning')); ?>"><?php echo e(ucfirst($doc['VERIFICATION_STATUS'])); ?></span></td>
+                                    <td><span class="status-badge badge-<?php echo e($doc['VERIFICATION_STATUS'] === 'approved' ? 'success' : ($doc['VERIFICATION_STATUS'] === 'rejected' ? 'danger' : ($doc['VERIFICATION_STATUS'] === 'needs_correction' ? 'info' : 'warning'))); ?>"><?php echo e(ucfirst(str_replace('_', ' ', $doc['VERIFICATION_STATUS']))); ?></span></td>
                                     <td><?php echo e(format_date($doc['UPLOADED_AT'])); ?></td>
                                 </tr>
                             <?php endforeach; ?>
@@ -338,6 +397,46 @@ function payment_status_badge($status) {
                 </div>
             <?php endif; ?>
         </div>
+
+        <?php if (!empty($documents)): ?>
+            <div class="dashboard-section" style="margin-top: 20px;">
+                <div class="section-header">
+                    <h2>Update Document Verification Status</h2>
+                </div>
+                <?php if (isset($document_success) && $document_success): ?>
+                    <div class="alert alert-success">Document status updated successfully.</div>
+                <?php endif; ?>
+                <?php if (isset($errors['document'])): ?>
+                    <div class="alert alert-error"><?php echo e($errors['document']); ?></div>
+                <?php endif; ?>
+                <form method="POST" action="<?php echo base_url('admin/application_details.php?id=' . $application['APPLICATION_ID']); ?>">
+                    <input type="hidden" name="csrf_token" value="<?php echo e(csrf_token()); ?>">
+                    <input type="hidden" name="update_document_status" value="1">
+                    <div class="form-group">
+                        <label for="document_id">Select Document *</label>
+                        <select id="document_id" name="document_id" required class="<?php echo isset($errors['document']) ? 'input-error' : ''; ?>">
+                            <option value="">-- Select document --</option>
+                            <?php foreach ($documents as $doc): ?>
+                                <option value="<?php echo e($doc['DOCUMENT_ID']); ?>">
+                                    <?php echo e($doc['ORIGINAL_FILENAME'] . ' (' . $doc['MIME_TYPE'] . ')'); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="document_verification_status">New Status *</label>
+                        <select id="document_verification_status" name="document_verification_status" required class="<?php echo isset($errors['document']) ? 'input-error' : ''; ?>">
+                            <option value="">-- Select status --</option>
+                            <option value="pending">Pending</option>
+                            <option value="approved">Verified / Approved</option>
+                            <option value="rejected">Rejected</option>
+                            <option value="needs_correction">Needs Correction</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Update Document Status</button>
+                </form>
+            </div>
+        <?php endif; ?>
 
         <!-- Payment Status -->
         <?php if ($application['REQUIRES_PAYMENT'] === 'Y'): ?>
@@ -367,6 +466,45 @@ function payment_status_badge($status) {
                     </div>
                 <?php endif; ?>
             </div>
+
+            <?php if (!empty($payments)): ?>
+                <div class="dashboard-section" style="margin-top: 20px;">
+                    <div class="section-header">
+                        <h2>Update Payment Status</h2>
+                    </div>
+                    <?php if (isset($payment_success) && $payment_success): ?>
+                        <div class="alert alert-success">Payment status updated successfully.</div>
+                    <?php endif; ?>
+                    <?php if (isset($errors['payment'])): ?>
+                        <div class="alert alert-error"><?php echo e($errors['payment']); ?></div>
+                    <?php endif; ?>
+                    <form method="POST" action="<?php echo base_url('admin/application_details.php?id=' . $application['APPLICATION_ID']); ?>">
+                        <input type="hidden" name="csrf_token" value="<?php echo e(csrf_token()); ?>">
+                        <input type="hidden" name="update_payment_status" value="1">
+                        <div class="form-group">
+                            <label for="payment_id">Select Payment *</label>
+                            <select id="payment_id" name="payment_id" required class="<?php echo isset($errors['payment']) ? 'input-error' : ''; ?>">
+                                <option value="">-- Select payment --</option>
+                                <?php foreach ($payments as $pay): ?>
+                                    <option value="<?php echo e($pay['PAYMENT_ID']); ?>">
+                                        <?php echo e($pay['PAYMENT_METHOD'] . ' - ' . number_format($pay['AMOUNT'], 2) . ' BDT - ' . ($pay['TRANSACTION_REF'] ?? 'No Ref')); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="payment_status">New Status *</label>
+                            <select id="payment_status" name="payment_status" required class="<?php echo isset($errors['payment']) ? 'input-error' : ''; ?>">
+                                <option value="">-- Select status --</option>
+                                <option value="pending">Pending</option>
+                                <option value="verified">Verified / Paid</option>
+                                <option value="failed">Failed</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Update Payment Status</button>
+                    </form>
+                </div>
+            <?php endif; ?>
         <?php endif; ?>
 
         <!-- Reviews -->

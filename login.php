@@ -125,14 +125,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             Don't have an account? <a href="<?php echo base_url('register.php'); ?>">Register here</a>
         </p>
 
-        <div class="demo-credentials">
+        <!-- <div class="demo-credentials">
             <p><strong>Demo Credentials (after running seed.sql):</strong></p>
             <ul>
                 <li>Admin: admin@uni.edu / password123</li>
                 <li>Reviewer: reviewer1@uni.edu / password123</li>
                 <li>Student: student1@uni.edu / password123</li>
             </ul>
-        </div>
+        </div> -->
     </div>
 </div>
 

@@ -89,7 +89,8 @@ CREATE TABLE DOCUMENTS (
     uploaded_at      DATE DEFAULT SYSDATE NOT NULL,
     verification_status VARCHAR2(20) DEFAULT 'pending' NOT NULL,
     CONSTRAINT fk_doc_app FOREIGN KEY (application_id) REFERENCES APPLICATIONS(application_id) ON DELETE CASCADE,
-    CONSTRAINT fk_doc_user FOREIGN KEY (uploaded_by) REFERENCES USERS(user_id)
+    CONSTRAINT fk_doc_user FOREIGN KEY (uploaded_by) REFERENCES USERS(user_id),
+    CONSTRAINT chk_doc_verification_status CHECK (verification_status IN ('pending', 'approved', 'rejected', 'needs_correction'))
 );
 
 -- APPLICATION_STATUS_HISTORY: Immutable audit trail of status changes

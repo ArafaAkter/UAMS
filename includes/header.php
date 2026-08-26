@@ -10,7 +10,6 @@
     <header class="main-header">
         <div class="container header-container">
             <a href="<?php echo base_url(); ?>" class="logo">
-                <span class="logo-icon">🎓</span>
                 <span class="logo-text"><?php echo APP_NAME; ?></span>
             </a>
             <nav class="main-nav">
