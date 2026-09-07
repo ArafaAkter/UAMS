@@ -246,11 +246,6 @@ $allowed_methods = [
                         <?php endif; ?>
                     </div>
 
-                    <p style="color: #666; font-size: 0.9rem; margin-bottom: 15px;">
-                        <strong>Note:</strong> This is a simulated payment submission. The payment will be marked as
-                        "Pending" and will be verified by an administrator. No real payment gateway is used.
-                    </p>
-
                     <button type="submit" class="btn btn-primary">Submit Payment Request</button>
                 </form>
             </div>

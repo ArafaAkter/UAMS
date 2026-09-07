@@ -61,12 +61,15 @@ require_once 'includes/header.php';
     </div>
 </div>
 
-<div class="tracking-section">
-    <div class="container">
-        <h2>Track Your Application</h2>
-        <p>Enter your reference number to check your application status.</p>
-        <a href="<?php echo base_url('track_application.php'); ?>" class="btn btn-primary">Track Now</a>
+<?php $current_role = is_logged_in() ? current_user_role() : null; ?>
+<?php if ($current_role !== 'reviewer' && $current_role !== 'admin'): ?>
+    <div class="tracking-section">
+        <div class="container">
+            <h2>Track Your Application</h2>
+            <p>Enter your reference number to check your application status.</p>
+            <a href="<?php echo base_url('track_application.php'); ?>" class="btn btn-primary">Track Now</a>
+        </div>
     </div>
-</div>
+<?php endif; ?>
 
 <?php require_once 'includes/footer.php'; ?>

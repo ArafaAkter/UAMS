@@ -107,13 +107,6 @@ function status_badge($code, $name) {
                 <h2>Assigned Applications</h2>
                 <div style="display: flex; gap: 10px; align-items: center;">
                     <a href="<?php echo base_url('reviewer/applications.php'); ?>" class="btn btn-small <?php echo empty($status_filter) ? 'btn-primary' : ''; ?>">All (<?php echo e($stats['total']); ?>)</a>
-                    <a href="?status=2" class="btn btn-small">Submitted</a>
-                    <a href="?status=3" class="btn btn-small">Under Review</a>
-                    <a href="?status=4" class="btn btn-small">Reviewed</a>
-                    <a href="?status=7" class="btn btn-small">Needs Info</a>
-                    <a href="?status=5" class="btn btn-small">Approved</a>
-                    <a href="?status=9" class="btn btn-small">Completed</a>
-                    <a href="?status=6" class="btn btn-small">Rejected</a>
                 </div>
             </div>
 
