@@ -46,10 +46,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_payment'])) {
         ]);
 
         if (db_affected_rows($conn, $stid) > 0) {
-            $success = true;
+            set_flash('success', 'Payment status updated successfully.');
         } else {
-            $errors['general'] = 'No payment record found or no changes made.';
+            set_flash('error', 'No payment record found or no changes made.');
         }
+        redirect('admin/payments.php');
     }
 }
 
@@ -130,8 +131,11 @@ foreach ($payments as $p) {
         </div>
 
         <!-- Success/Error Messages -->
-        <?php if ($success): ?>
-            <div class="alert alert-success">Payment status updated successfully.</div>
+        <?php $flash = get_flash(); ?>
+        <?php if ($flash): ?>
+            <div class="alert alert-<?php echo e($flash['type'] === 'error' ? 'error' : 'success'); ?>">
+                <?php echo e($flash['message']); ?>
+            </div>
         <?php endif; ?>
         <?php if (isset($errors['general'])): ?>
             <div class="alert alert-error"><?php echo e($errors['general']); ?></div>

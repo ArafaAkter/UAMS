@@ -20,8 +20,8 @@ $user_id = current_user_id();
 $user = get_logged_in_user($conn);
 
 $errors = [];
-$success = false;
-$password_success = false;
+        $success = false;
+        $password_success = false;
 
 // Handle profile update
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
@@ -57,7 +57,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
             'b_user_id' => $user_id
         ]);
 
-        $success = true;
+        set_flash('success', 'Profile updated successfully.');
+        redirect('profile.php');
     }
 }
 
@@ -95,7 +96,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
             WHERE user_id = :b_user_id
         ", ['b_password_hash' => $password_hash, 'b_user_id' => $user_id]);
 
-        $password_success = true;
+        set_flash('success', 'Password changed successfully.');
+        redirect('profile.php');
     }
 }
 
@@ -110,11 +112,11 @@ db_close($conn);
             <p>View and manage your personal information</p>
         </div>
 
-        <?php if ($success): ?>
-            <div class="alert alert-success">Profile updated successfully.</div>
-        <?php endif; ?>
-        <?php if ($password_success): ?>
-            <div class="alert alert-success">Password changed successfully.</div>
+        <?php $flash = get_flash(); ?>
+        <?php if ($flash): ?>
+            <div class="alert alert-<?php echo e($flash['type'] === 'error' ? 'error' : 'success'); ?>">
+                <?php echo e($flash['message']); ?>
+            </div>
         <?php endif; ?>
         <?php if (isset($errors['general'])): ?>
             <div class="alert alert-error"><?php echo e($errors['general']); ?></div>

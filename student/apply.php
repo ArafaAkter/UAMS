@@ -123,58 +123,139 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $selected_type) {
         $seq = db_fetch_value($conn, "SELECT COUNT(*) + 1 FROM APPLICATIONS WHERE reference_number LIKE :pattern", ['pattern' => $pattern]);
         $reference_number = 'UAMS-' . $year . '-' . sprintf('%04d', $seq);
 
-        // Insert the application
-        $json_data = json_encode($application_data, JSON_UNESCAPED_UNICODE);
-        $sql = "INSERT INTO APPLICATIONS (student_id, type_id, reference_number, current_status_id, application_data, submitted_at)
-                VALUES (:sid, :type_id, :ref, :status_id, TO_CLOB(:data), SYSDATE)";
-        $stid = db_query($conn, $sql, [
-            'sid' => $student_id,
-            'type_id' => $selected_type['TYPE_ID'],
-            'ref' => $reference_number,
-            'status_id' => $submitted_status_id,
-            'data' => $json_data
-        ]);
-
-        $new_app_id = db_last_insert_id($conn, 'seq_app_id');
-
-        if ($new_app_id) {
-            // Auto-assign a reviewer from the same department (round-robin: pick reviewer with fewest assigned applications)
-            $student_dept = $user['DEPARTMENT'] ?? '';
-            $reviewer = null;
-            if ($student_dept) {
-                $reviewer = db_fetch_one($conn, "
-                    SELECT u.user_id, COUNT(a.application_id) as app_count
-                    FROM USERS u
-                    LEFT JOIN APPLICATIONS a ON u.user_id = a.reviewer_id
-                    WHERE u.role = 'reviewer' AND u.is_active = 'Y' AND u.department = :dept
-                    GROUP BY u.user_id
-                    ORDER BY app_count ASC
-                ", ['dept' => $student_dept]);
+        // For paid types, validate payment screenshot upload
+        if ($selected_type['REQUIRES_PAYMENT'] === 'Y') {
+            if (!isset($_FILES['payment_screenshot']) || $_FILES['payment_screenshot']['error'] === UPLOAD_ERR_NO_FILE) {
+                $errors['payment_screenshot'] = 'Payment screenshot is required for this application type.';
+            } elseif ($_FILES['payment_screenshot']['error'] !== UPLOAD_ERR_OK) {
+                $errors['payment_screenshot'] = 'Payment screenshot upload failed. Please try again.';
+            } else {
+                $screenshot = $_FILES['payment_screenshot'];
+                $screenshot_size = $screenshot['size'];
+                if ($screenshot_size > UPLOAD_MAX_SIZE) {
+                    $errors['payment_screenshot'] = 'Payment screenshot is too large. Maximum size allowed: ' . (UPLOAD_MAX_SIZE / 1024 / 1024) . 'MB.';
+                } else {
+                    $path_info = pathinfo($screenshot['name']);
+                    $ext = strtolower($path_info['extension'] ?? '');
+                    if (empty($ext) || !in_array($ext, ALLOWED_EXTENSIONS)) {
+                        $errors['payment_screenshot'] = 'Invalid file type. Allowed types: ' . implode(', ', ALLOWED_EXTENSIONS) . '.';
+                    } else {
+                        $allowed_pattern = '/\.(?:' . implode('|', array_map(function($e) { return preg_quote($e); }, ALLOWED_EXTENSIONS)) . ')$/i';
+                        if (!preg_match($allowed_pattern, $screenshot['name'])) {
+                            $errors['payment_screenshot'] = 'Invalid file type. Allowed types: ' . implode(', ', ALLOWED_EXTENSIONS) . '.';
+                        }
+                    }
+                }
             }
+        }
 
-            if ($reviewer) {
-                db_query($conn, "
-                    UPDATE APPLICATIONS SET reviewer_id = :rid WHERE application_id = :app_id
-                ", [
-                    'rid' => $reviewer['USER_ID'],
-                    'app_id' => $new_app_id
-                ]);
-            }
-
-            // Insert initial status history record
-            db_query($conn, "
-                INSERT INTO APPLICATION_STATUS_HISTORY (application_id, status_id, changed_by, comments)
-                VALUES (:app_id, :status_id, :sid, 'Application submitted by student')
-            ", [
-                'app_id' => $new_app_id,
+        if (empty($errors)) {
+            // Insert the application
+            $json_data = json_encode($application_data, JSON_UNESCAPED_UNICODE);
+            $sql = "INSERT INTO APPLICATIONS (student_id, type_id, reference_number, current_status_id, application_data, submitted_at)
+                    VALUES (:sid, :type_id, :ref, :status_id, TO_CLOB(:data), SYSDATE)";
+            $stid = db_query($conn, $sql, [
+                'sid' => $student_id,
+                'type_id' => $selected_type['TYPE_ID'],
+                'ref' => $reference_number,
                 'status_id' => $submitted_status_id,
-                'sid' => $student_id
+                'data' => $json_data
             ]);
 
-            $success = true;
-            $reference_number = '';
-        } else {
-            $errors['general'] = 'Failed to create application. Please try again.';
+            $new_app_id = db_last_insert_id($conn, 'seq_app_id');
+
+            if ($new_app_id) {
+                $payment_saved = true;
+
+                if ($selected_type['REQUIRES_PAYMENT'] === 'Y') {
+                    $screenshot = $_FILES['payment_screenshot'];
+                    $original_filename = $screenshot['name'];
+                    $path_info = pathinfo($original_filename);
+                    $extension = strtolower($path_info['extension'] ?? '');
+                    $stored_filename = 'payment_' . $new_app_id . '_' . time() . '.' . $extension;
+                    $upload_dir = __DIR__ . '/../uploads/payments/';
+                    $receipt_path = 'uploads/payments/' . $stored_filename;
+
+                    if (!is_dir($upload_dir)) {
+                        mkdir($upload_dir, 0755, true);
+                    }
+
+                    if (!move_uploaded_file($screenshot['tmp_name'], $upload_dir . $stored_filename)) {
+                        $errors['general'] = 'Failed to save payment screenshot. Please try again.';
+                        $payment_saved = false;
+                    } else {
+                        // Insert payment record (auto-verified for simulated payment)
+                        $sql = "INSERT INTO PAYMENTS (application_id, amount, payment_method, transaction_ref, payment_date, verified_by, status, receipt_path)
+                                VALUES (:app_id, :amount, :method, :txn_ref, SYSDATE, :verified_by, 'verified', :receipt_path)";
+                        db_query($conn, $sql, [
+                            'app_id' => $new_app_id,
+                            'amount' => $selected_type['FEE_AMOUNT'],
+                            'method' => 'online',
+                            'txn_ref' => 'UAMS-' . $reference_number,
+                            'verified_by' => $student_id,
+                            'receipt_path' => $receipt_path
+                        ]);
+
+                        // Also insert payment screenshot into DOCUMENTS so reviewer sees it in document list
+                        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+                        $mime_type = finfo_file($finfo, $upload_dir . $stored_filename);
+                        finfo_close($finfo);
+                        $sql = "INSERT INTO DOCUMENTS (application_id, original_filename, stored_filename, file_path, file_size, mime_type, uploaded_by, verification_status)
+                                VALUES (:app_id, :orig_name, :stored_name, :file_path, :file_size, :mime_type, :uploaded_by, 'approved')";
+                        db_query($conn, $sql, [
+                            'app_id' => $new_app_id,
+                            'orig_name' => 'Payment Screenshot - ' . $original_filename,
+                            'stored_name' => $stored_filename,
+                            'file_path' => $receipt_path,
+                            'file_size' => $screenshot_size,
+                            'mime_type' => $mime_type,
+                            'uploaded_by' => $student_id
+                        ]);
+                    }
+                }
+
+                if ($payment_saved) {
+                    // Auto-assign a reviewer from the same department (round-robin: pick reviewer with fewest assigned applications)
+                    $student_dept = $user['DEPARTMENT'] ?? '';
+                    $reviewer = null;
+                    if ($student_dept) {
+                        $reviewer = db_fetch_one($conn, "
+                            SELECT u.user_id, COUNT(a.application_id) as app_count
+                            FROM USERS u
+                            LEFT JOIN APPLICATIONS a ON u.user_id = a.reviewer_id
+                            WHERE u.role = 'reviewer' AND u.is_active = 'Y' AND u.department = :dept
+                            GROUP BY u.user_id
+                            ORDER BY app_count ASC
+                        ", ['dept' => $student_dept]);
+                    }
+
+                    if ($reviewer) {
+                        db_query($conn, "
+                            UPDATE APPLICATIONS SET reviewer_id = :rid WHERE application_id = :app_id
+                        ", [
+                            'rid' => $reviewer['USER_ID'],
+                            'app_id' => $new_app_id
+                        ]);
+                    }
+
+                    // Insert initial status history record
+                    db_query($conn, "
+                        INSERT INTO APPLICATION_STATUS_HISTORY (application_id, status_id, changed_by, comments)
+                        VALUES (:app_id, :status_id, :sid, 'Application submitted by student')
+                    ", [
+                        'app_id' => $new_app_id,
+                        'status_id' => $submitted_status_id,
+                        'sid' => $student_id
+                    ]);
+
+                    set_flash('success', 'Application submitted successfully! Reference: ' . $reference_number);
+                    redirect('student/my_applications.php');
+                } else {
+                    db_query($conn, "DELETE FROM APPLICATIONS WHERE application_id = :app_id", ['app_id' => $new_app_id]);
+                }
+            } else {
+                $errors['general'] = 'Failed to create application. Please try again.';
+            }
         }
     }
 }
@@ -190,15 +271,14 @@ db_close($conn);
             <p>Select application type and fill in the required information</p>
         </div>
 
-        <?php if ($success): ?>
-            <div class="alert alert-success">
-                Application submitted successfully!
+        <?php $flash = get_flash(); ?>
+        <?php if ($flash): ?>
+            <div class="alert alert-<?php echo e($flash['type'] === 'error' ? 'error' : 'success'); ?>">
+                <?php echo e($flash['message']); ?>
             </div>
-            <p style="margin-bottom: 20px;">
-                <a href="<?php echo base_url('student/my_applications.php'); ?>" class="btn btn-primary">View My Applications</a>
-                <a href="<?php echo base_url('student/dashboard.php'); ?>" class="btn btn-small">Back to Dashboard</a>
-            </p>
-        <?php elseif ($selected_type && !empty($fields)): ?>
+        <?php endif; ?>
+
+        <?php if ($selected_type && !empty($fields)): ?>
             <?php if (isset($errors['general'])): ?>
                 <div class="alert alert-error"><?php echo e($errors['general']); ?></div>
             <?php endif; ?>
@@ -218,7 +298,7 @@ db_close($conn);
                     <p style="color: #666; margin-bottom: 20px;"><?php echo e($selected_type['DESCRIPTION']); ?></p>
                 <?php endif; ?>
 
-                <form method="POST" action="<?php echo base_url('student/apply.php?type=' . $selected_type['TYPE_ID']); ?>">
+                <form method="POST" action="<?php echo base_url('student/apply.php?type=' . $selected_type['TYPE_ID']); ?>" enctype="multipart/form-data">
                     <input type="hidden" name="csrf_token" value="<?php echo e(csrf_token()); ?>">
                     <input type="hidden" name="type_id" value="<?php echo e($selected_type['TYPE_ID']); ?>">
 
@@ -259,9 +339,23 @@ db_close($conn);
                         </div>
                     <?php endforeach; ?>
 
+                    <?php if ($selected_type['REQUIRES_PAYMENT'] === 'Y'): ?>
+                        <div class="form-group">
+                            <label for="payment_screenshot">Payment Screenshot *</label>
+                            <input type="file" id="payment_screenshot" name="payment_screenshot" required
+                                   class="<?php echo isset($errors['payment_screenshot']) ? 'input-error' : ''; ?>">
+                            <p style="color: #666; font-size: 0.85rem; margin-top: 5px;">
+                                Upload your payment screenshot/proof. Fee: <?php echo e(number_format($selected_type['FEE_AMOUNT'], 2)); ?> BDT
+                            </p>
+                            <?php if (isset($errors['payment_screenshot'])): ?>
+                                <span class="error-text"><?php echo e($errors['payment_screenshot']); ?></span>
+                            <?php endif; ?>
+                        </div>
+                    <?php endif; ?>
+
                     <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
                         <p style="color: #666; font-size: 0.9rem; margin-bottom: 15px;">
-                            <strong>Note:</strong> Document upload is not yet available. You will be able to upload required documents after submission.
+                            <strong>Note:</strong> <?php echo $selected_type['REQUIRES_PAYMENT'] === 'Y' ? 'Your payment screenshot will be verified automatically upon submission.' : 'Document upload is not yet available. You will be able to upload required documents after submission.'; ?>
                         </p>
                         <button type="submit" class="btn btn-primary btn-block">Submit Application</button>
                     </div>

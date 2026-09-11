@@ -58,7 +58,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_type'])) {
                     'fee' => $fee_amount,
                     'active' => $is_active
                 ]);
-                $success = db_affected_rows($conn, $stid) > 0;
+
+                if (db_affected_rows($conn, $stid) > 0) {
+                    set_flash('success', 'Application type added successfully.');
+                    redirect('admin/settings.php');
+                } else {
+                    $errors['general'] = 'Failed to add application type. Please try again.';
+                }
             }
         } else {
                 $stid = db_query($conn, "
@@ -75,8 +81,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_type'])) {
                     'active' => $is_active,
                     'tid' => $type_id
                 ]);
-            $success = db_affected_rows($conn, $stid) > 0;
-        }
+
+                if (db_affected_rows($conn, $stid) > 0) {
+                    set_flash('success', 'Application type updated successfully.');
+                    redirect('admin/settings.php');
+                } else {
+                    $errors['general'] = 'No changes made or failed to update.';
+                }
+            }
     }
 }
 
@@ -106,17 +118,18 @@ if (isset($_GET['edit']) && is_numeric($_GET['edit'])) {
 }
 
 // Handle delete request
-if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
-    $target_id = $_GET['delete'];
-    // Check if type is in use
-    $in_use = db_fetch_value($conn, "SELECT COUNT(*) FROM APPLICATIONS WHERE type_id = :tid", ['tid' => $target_id]);
-    if ($in_use == 0) {
-        db_query($conn, "DELETE FROM APPLICATION_TYPES WHERE type_id = :tid", ['tid' => $target_id]);
-        $success = true;
-    } else {
-        $errors['general'] = 'Cannot delete: this type is used by existing applications.';
+    if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
+        $target_id = $_GET['delete'];
+        // Check if type is in use
+        $in_use = db_fetch_value($conn, "SELECT COUNT(*) FROM APPLICATIONS WHERE type_id = :tid", ['tid' => $target_id]);
+        if ($in_use == 0) {
+            db_query($conn, "DELETE FROM APPLICATION_TYPES WHERE type_id = :tid", ['tid' => $target_id]);
+            set_flash('success', 'Application type deleted successfully.');
+        } else {
+            set_flash('error', 'Cannot delete: this type is used by existing applications.');
+        }
+        redirect('admin/settings.php');
     }
-}
 
 // Fetch all types
 $app_types = db_fetch_all($conn, "
@@ -139,8 +152,11 @@ db_close($conn);
             <p>Manage application types and fees</p>
         </div>
 
-        <?php if ($success && !$edit_mode): ?>
-            <div class="alert alert-success">Operation completed successfully.</div>
+        <?php $flash = get_flash(); ?>
+        <?php if ($flash): ?>
+            <div class="alert alert-<?php echo e($flash['type'] === 'error' ? 'error' : 'success'); ?>">
+                <?php echo e($flash['message']); ?>
+            </div>
         <?php endif; ?>
         <?php if (isset($errors['general'])): ?>
             <div class="alert alert-error"><?php echo e($errors['general']); ?></div>

@@ -25,7 +25,9 @@ $stats['approved'] = db_fetch_value($conn, 'SELECT COUNT(*) FROM APPLICATIONS WH
 $stats['rejected'] = db_fetch_value($conn, 'SELECT COUNT(*) FROM APPLICATIONS WHERE current_status_id IN (6, 10)');
 $stats['pending_payments'] = db_fetch_value($conn, "SELECT COUNT(*) FROM PAYMENTS WHERE status = 'pending'");
 $stats['verified_payments'] = db_fetch_value($conn, "SELECT COUNT(*) FROM PAYMENTS WHERE status = 'verified'");
-$stats['total_revenue'] = db_fetch_value($conn, "SELECT NVL(SUM(amount), 0) FROM PAYMENTS WHERE status = 'verified'");
+ $stats['total_revenue'] = db_fetch_value($conn, "SELECT NVL(SUM(amount), 0) FROM PAYMENTS WHERE status = 'verified'");
+$stats['pending_verification_docs'] = db_fetch_value($conn, "SELECT COUNT(*) FROM DOCUMENTS WHERE verification_status = 'pending'");
+$stats['needs_correction_docs'] = db_fetch_value($conn, "SELECT COUNT(*) FROM DOCUMENTS WHERE verification_status = 'needs_correction'");
 
 // Recent applications
 $recent_apps = db_fetch_all($conn, "
@@ -52,6 +54,34 @@ $recent_users = db_fetch_all($conn, "
 
 // Limit to 5 rows in PHP instead of FETCH FIRST
 $recent_users = array_slice($recent_users, 0, 5);
+
+// Recent payments pending verification
+$recent_payments = db_fetch_all($conn, "
+    SELECT p.payment_id, p.amount, p.payment_method, p.transaction_ref, p.status, p.created_at,
+           a.application_id, a.reference_number,
+           t.type_name,
+           u.full_name as student_name, u.email as student_email
+    FROM PAYMENTS p
+    JOIN APPLICATIONS a ON p.application_id = a.application_id
+    JOIN APPLICATION_TYPES t ON a.type_id = t.type_id
+    JOIN USERS u ON a.student_id = u.user_id
+    WHERE p.status = 'pending'
+    ORDER BY p.created_at DESC
+");
+
+// Documents pending verification
+$pending_docs = db_fetch_all($conn, "
+    SELECT d.document_id, d.original_filename, d.file_path, d.verification_status, d.uploaded_at,
+           a.application_id, a.reference_number,
+           t.type_name,
+           u.full_name as student_name
+    FROM DOCUMENTS d
+    JOIN APPLICATIONS a ON d.application_id = a.application_id
+    JOIN APPLICATION_TYPES t ON a.type_id = t.type_id
+    JOIN USERS u ON a.student_id = u.user_id
+    WHERE d.verification_status IN ('pending', 'needs_correction')
+    ORDER BY d.uploaded_at DESC
+");
 
 db_close($conn);
 
@@ -116,6 +146,11 @@ function role_badge($role) {
                 <p>Total Revenue</p>
                 <small><?php echo e($stats['pending_payments'] ?? 0); ?> pending verification</small>
             </div>
+            <div class="stat-card">
+                <h3><?php echo e($stats['pending_verification_docs'] ?? 0); ?></h3>
+                <p>Docs Pending Verification</p>
+                <small><?php echo e($stats['needs_correction_docs'] ?? 0); ?> need correction</small>
+            </div>
         </div>
 
         <!-- Quick Actions -->
@@ -177,6 +212,100 @@ function role_badge($role) {
                                     <td><?php echo e($app['TYPE_NAME']); ?></td>
                                     <td><?php echo status_badge($app['STATUS_CODE'], $app['STATUS_NAME']); ?></td>
                                     <td><?php echo e(format_date($app['SUBMITTED_AT'])); ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            <?php endif; ?>
+        </div>
+
+        <!-- Recent Payments Requiring Action -->
+        <div class="dashboard-section">
+            <div class="section-header">
+                <h2>Payments Pending Verification (<?php echo e(count($recent_payments)); ?>)</h2>
+                <a href="<?php echo base_url('admin/payments.php'); ?>" class="btn btn-small">View All Payments</a>
+            </div>
+
+            <?php if (empty($recent_payments)): ?>
+                <div class="empty-state">
+                    <p>No payments are currently pending verification.</p>
+                </div>
+            <?php else: ?>
+                <div class="table-wrapper">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Reference</th>
+                                <th>Student</th>
+                                <th>Type</th>
+                                <th>Amount</th>
+                                <th>Method</th>
+                                <th>Submitted</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($recent_payments as $pay): ?>
+                                <tr>
+                                    <td><?php echo e($pay['REFERENCE_NUMBER']); ?></td>
+                                    <td><?php echo e($pay['STUDENT_NAME']); ?> <br><small><?php echo e($pay['STUDENT_EMAIL']); ?></small></td>
+                                    <td><?php echo e($pay['TYPE_NAME']); ?></td>
+                                    <td><?php echo e(number_format($pay['AMOUNT'], 2)); ?> BDT</td>
+                                    <td><?php echo e($pay['PAYMENT_METHOD']); ?></td>
+                                    <td><?php echo e(format_date($pay['CREATED_AT'])); ?></td>
+                                    <td>
+                                        <a href="<?php echo base_url('admin/payments.php?action=edit&id=' . $pay['PAYMENT_ID']); ?>" class="btn btn-small btn-primary">Verify</a>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            <?php endif; ?>
+        </div>
+
+        <!-- Documents Pending Verification -->
+        <div class="dashboard-section">
+            <div class="section-header">
+                <h2>Documents Pending Verification (<?php echo e(count($pending_docs)); ?>)</h2>
+                <a href="<?php echo base_url('admin/all_applications.php'); ?>" class="btn btn-small">View All Applications</a>
+            </div>
+
+            <?php if (empty($pending_docs)): ?>
+                <div class="empty-state">
+                    <p>No documents are currently awaiting verification.</p>
+                </div>
+            <?php else: ?>
+                <div class="table-wrapper">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Filename</th>
+                                <th>Student</th>
+                                <th>Reference</th>
+                                <th>Type</th>
+                                <th>Status</th>
+                                <th>Uploaded</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($pending_docs as $doc): ?>
+                                <tr>
+                                    <td><?php echo e($doc['ORIGINAL_FILENAME']); ?></td>
+                                    <td><?php echo e($doc['STUDENT_NAME']); ?></td>
+                                    <td><?php echo e($doc['REFERENCE_NUMBER']); ?></td>
+                                    <td><?php echo e($doc['TYPE_NAME']); ?></td>
+                                    <td>
+                                        <span class="status-badge <?php echo $doc['VERIFICATION_STATUS'] === 'needs_correction' ? 'badge-info' : 'badge-warning'; ?>">
+                                            <?php echo e(ucfirst(str_replace('_', ' ', $doc['VERIFICATION_STATUS']))); ?>
+                                        </span>
+                                    </td>
+                                    <td><?php echo e(format_date($doc['UPLOADED_AT'])); ?></td>
+                                    <td>
+                                        <a href="<?php echo base_url('admin/application_details.php?id=' . $doc['APPLICATION_ID']); ?>" class="btn btn-small btn-primary">Verify</a>
+                                    </td>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>

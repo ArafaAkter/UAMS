@@ -60,55 +60,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
         $status = db_fetch_one($conn, "SELECT status_code, status_name FROM APPLICATION_STATUS WHERE status_id = :sid", ['sid' => $new_status_id]);
         if (!$status) {
             $errors['general'] = 'Invalid status selected.';
-        } else {
-            // Insert status history
-            db_query($conn, "
-                INSERT INTO APPLICATION_STATUS_HISTORY (application_id, status_id, changed_by, comments, changed_at)
-                VALUES (:app_id, :sid, :admin_id, :comments, SYSDATE)
-            ", [
-                'app_id' => $application_id,
-                'sid' => $new_status_id,
-                'admin_id' => $admin_id,
-                'comments' => $admin_comments ?: 'Status updated by admin'
-            ]);
+         } else {
+            // Workflow enforcement: final statuses require a prior review
+            $final_statuses = [5, 6, 8, 9, 10]; // approved, rejected, payment_pending, completed, closed
+            if (in_array((int)$new_status_id, $final_statuses)) {
+                $review_exists = db_fetch_value($conn, "SELECT COUNT(*) FROM REVIEWS WHERE application_id = :app_id", ['app_id' => $application_id]);
+                if (!$review_exists) {
+                    $errors['general'] = 'A review must be submitted by a reviewer before setting a final status. Please wait for the reviewer to complete their review.';
+                }
+            }
+            if (empty($errors)) {
+                // Insert status history
+                db_query($conn, "
+                    INSERT INTO APPLICATION_STATUS_HISTORY (application_id, status_id, changed_by, comments, changed_at)
+                    VALUES (:app_id, :sid, :admin_id, :comments, SYSDATE)
+                ", [
+                    'app_id' => $application_id,
+                    'sid' => $new_status_id,
+                    'admin_id' => $admin_id,
+                    'comments' => $admin_comments ?: 'Status updated by admin'
+                ]);
 
-            // Update application status
-            db_query($conn, "
-                UPDATE APPLICATIONS SET current_status_id = :sid, updated_at = SYSDATE
-                WHERE application_id = :app_id
-            ", ['sid' => $new_status_id, 'app_id' => $application_id]);
+                // Update application status
+                db_query($conn, "
+                    UPDATE APPLICATIONS SET current_status_id = :sid, updated_at = SYSDATE
+                    WHERE application_id = :app_id
+                ", ['sid' => $new_status_id, 'app_id' => $application_id]);
 
-            $success = true;
-        }
-    }
-}
-
-// Handle payment status update
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_payment_status'])) {
-    validate_csrf();
-
-    $payment_id = trim($_POST['payment_id'] ?? '');
-    $new_payment_status = trim($_POST['payment_status'] ?? '');
-
-    $allowed_payment_statuses = ['pending', 'verified', 'failed'];
-
-    if (!is_numeric($payment_id) || !in_array($new_payment_status, $allowed_payment_statuses)) {
-        $errors['payment'] = 'Invalid payment or status selected.';
-    } else {
-        $payment = db_fetch_one($conn, "SELECT payment_id FROM PAYMENTS WHERE payment_id = :pid AND application_id = :app_id", ['pid' => $payment_id, 'app_id' => $application_id]);
-        if (!$payment) {
-            $errors['payment'] = 'Payment record not found for this application.';
-        } else {
-            db_query($conn, "
-                UPDATE PAYMENTS SET status = :status, verified_by = :admin_id, updated_at = SYSDATE
-                WHERE payment_id = :pid
-            ", [
-                'status' => $new_payment_status,
-                'admin_id' => $admin_id,
-                'pid' => $payment_id
-            ]);
-
-            $payment_success = true;
+                set_flash('success', 'Application status updated successfully.');
+                redirect('admin/application_details.php?id=' . $application_id);
+            }
         }
     }
 }
@@ -137,7 +118,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_document_statu
                 'did' => $document_id
             ]);
 
-            $document_success = true;
+            set_flash('success', 'Document status updated successfully.');
+            redirect('admin/application_details.php?id=' . $application_id);
         }
     }
 }
@@ -206,8 +188,16 @@ foreach ($reviews as &$r) {
     $r['COMMENTS'] = clob_to_string($r['COMMENTS']);
 }
 
-// Fetch all statuses for dropdown
-$all_statuses = db_fetch_all($conn, "SELECT status_id, status_code, status_name FROM APPLICATION_STATUS WHERE is_active = 'Y' ORDER BY sort_order");
+$has_review = !empty($reviews);
+
+// Fetch statuses for dropdown.
+// When a review exists, admin can only set final/approval statuses.
+// When no review exists, admin can set review-phase statuses to move the workflow along.
+if ($has_review) {
+    $all_statuses = db_fetch_all($conn, "SELECT status_id, status_code, status_name FROM APPLICATION_STATUS WHERE is_active = 'Y' AND status_code IN ('approved', 'rejected', 'payment_pending', 'completed', 'closed') ORDER BY sort_order");
+} else {
+    $all_statuses = db_fetch_all($conn, "SELECT status_id, status_code, status_name FROM APPLICATION_STATUS WHERE is_active = 'Y' AND status_code IN ('under_review', 'needs_review') ORDER BY sort_order");
+}
 
 db_close($conn);
 
@@ -276,10 +266,6 @@ function payment_status_badge($status) {
             <div class="alert alert-<?php echo e($flash['type'] === 'error' ? 'error' : 'success'); ?>">
                 <?php echo e($flash['message']); ?>
             </div>
-        <?php endif; ?>
-
-        <?php if ($success): ?>
-            <div class="alert alert-success">Application status updated successfully.</div>
         <?php endif; ?>
         <?php if (isset($errors['general'])): ?>
             <div class="alert alert-error"><?php echo e($errors['general']); ?></div>
@@ -384,7 +370,7 @@ function payment_status_badge($status) {
                         <tbody>
                             <?php foreach ($documents as $doc): ?>
                                 <tr>
-                                    <td><?php echo e($doc['ORIGINAL_FILENAME']); ?></td>
+                                    <td><a href="<?php echo base_url($doc['FILE_PATH']); ?>" target="_blank"><?php echo e($doc['ORIGINAL_FILENAME']); ?></a></td>
                                     <td><?php echo e($doc['UPLOADED_BY_NAME']); ?></td>
                                     <td><?php echo e(number_format($doc['FILE_SIZE'] / 1024, 2)); ?> KB</td>
                                     <td><?php echo e($doc['MIME_TYPE']); ?></td>
@@ -403,9 +389,6 @@ function payment_status_badge($status) {
                 <div class="section-header">
                     <h2>Update Document Verification Status</h2>
                 </div>
-                <?php if (isset($document_success) && $document_success): ?>
-                    <div class="alert alert-success">Document status updated successfully.</div>
-                <?php endif; ?>
                 <?php if (isset($errors['document'])): ?>
                     <div class="alert alert-error"><?php echo e($errors['document']); ?></div>
                 <?php endif; ?>
@@ -466,45 +449,6 @@ function payment_status_badge($status) {
                     </div>
                 <?php endif; ?>
             </div>
-
-            <?php if (!empty($payments)): ?>
-                <div class="dashboard-section" style="margin-top: 20px;">
-                    <div class="section-header">
-                        <h2>Update Payment Status</h2>
-                    </div>
-                    <?php if (isset($payment_success) && $payment_success): ?>
-                        <div class="alert alert-success">Payment status updated successfully.</div>
-                    <?php endif; ?>
-                    <?php if (isset($errors['payment'])): ?>
-                        <div class="alert alert-error"><?php echo e($errors['payment']); ?></div>
-                    <?php endif; ?>
-                    <form method="POST" action="<?php echo base_url('admin/application_details.php?id=' . $application['APPLICATION_ID']); ?>">
-                        <input type="hidden" name="csrf_token" value="<?php echo e(csrf_token()); ?>">
-                        <input type="hidden" name="update_payment_status" value="1">
-                        <div class="form-group">
-                            <label for="payment_id">Select Payment *</label>
-                            <select id="payment_id" name="payment_id" required class="<?php echo isset($errors['payment']) ? 'input-error' : ''; ?>">
-                                <option value="">-- Select payment --</option>
-                                <?php foreach ($payments as $pay): ?>
-                                    <option value="<?php echo e($pay['PAYMENT_ID']); ?>">
-                                        <?php echo e($pay['PAYMENT_METHOD'] . ' - ' . number_format($pay['AMOUNT'], 2) . ' BDT - ' . ($pay['TRANSACTION_REF'] ?? 'No Ref')); ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="payment_status">New Status *</label>
-                            <select id="payment_status" name="payment_status" required class="<?php echo isset($errors['payment']) ? 'input-error' : ''; ?>">
-                                <option value="">-- Select status --</option>
-                                <option value="pending">Pending</option>
-                                <option value="verified">Verified / Paid</option>
-                                <option value="failed">Failed</option>
-                            </select>
-                        </div>
-                        <button type="submit" class="btn btn-primary">Update Payment Status</button>
-                    </form>
-                </div>
-            <?php endif; ?>
         <?php endif; ?>
 
         <!-- Reviews -->
@@ -533,11 +477,23 @@ function payment_status_badge($status) {
             <?php endif; ?>
         </div>
 
-        <!-- Admin Status Update -->
+         <!-- Admin Status Update -->
         <div class="dashboard-section">
             <div class="section-header">
                 <h2>Update Application Status</h2>
             </div>
+
+            <?php if (!$has_review): ?>
+                <div class="alert alert-info" style="margin-bottom: 16px;">
+                    <strong>Review Pending:</strong> A reviewer has not yet submitted their review for this application.
+                    The available statuses are limited to review-phase transitions. Final statuses (Approved, Rejected,
+                    Payment Pending, Completed) will become available once a review is submitted.
+                </div>
+            <?php else: ?>
+                <div class="alert alert-info" style="margin-bottom: 16px;">
+                    <strong>Review Completed:</strong> A review has been submitted. You can now set the final application status.
+                </div>
+            <?php endif; ?>
 
             <form method="POST" action="<?php echo base_url('admin/application_details.php?id=' . $application['APPLICATION_ID']); ?>">
                 <input type="hidden" name="csrf_token" value="<?php echo e(csrf_token()); ?>">

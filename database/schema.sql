@@ -215,6 +215,41 @@ END;
 /
 
 -- ============================================
+-- 3b. RBAC TRIGGERS (Role-based access control at database level)
+-- ============================================
+
+-- Only admins may verify payments (defense-in-depth RBAC at database level)
+CREATE OR REPLACE TRIGGER trg_payments_bu
+BEFORE UPDATE OF status, verified_by ON PAYMENTS
+FOR EACH ROW
+WHEN (new.status = 'verified' OR (new.status = 'failed' AND new.verified_by IS NOT NULL))
+DECLARE
+    v_role USERS.role%TYPE;
+BEGIN
+    IF :new.status = 'verified' THEN
+        IF :new.verified_by IS NULL THEN
+            RAISE_APPLICATION_ERROR(-20001, 'Payment verification requires an administrator (verified_by).');
+        END IF;
+        SELECT role INTO v_role FROM USERS WHERE user_id = :new.verified_by;
+        IF v_role != 'admin' THEN
+            RAISE_APPLICATION_ERROR(-20001, 'Only administrators may verify payments.');
+        END IF;
+    ELSIF :new.verified_by IS NOT NULL THEN
+        SELECT role INTO v_role FROM USERS WHERE user_id = :new.verified_by;
+        IF v_role != 'admin' THEN
+            RAISE_APPLICATION_ERROR(-20001, 'Only administrators may verify payments.');
+        END IF;
+    END IF;
+END;
+/
+
+-- Note: Reviewer payment access is enforced at the PHP application layer via require_role()
+-- and status ID whitelisting in reviewer/* pages. Database-level triggers cannot distinguish
+-- the application user making the update (all updates come through the same Oracle DB user),
+-- so reviewer RBAC for status transitions is handled in application code where the
+-- authenticated session user's role is known.
+
+-- ============================================
 -- 4. INDEXES (Performance optimization)
 -- ============================================
 

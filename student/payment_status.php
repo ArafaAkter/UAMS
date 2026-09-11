@@ -70,7 +70,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ]);
 
         if (db_affected_rows($conn, $stid) > 0) {
-            $success = true;
+            set_flash('success', 'Payment request submitted successfully! An administrator will verify your payment soon.');
+            redirect('student/payment_status.php');
         } else {
             $errors['general'] = 'Failed to create payment record. Please try again.';
         }
@@ -251,9 +252,10 @@ $allowed_methods = [
             </div>
         <?php endif; ?>
 
-        <?php if ($success): ?>
-            <div class="alert alert-success">
-                Payment request submitted successfully! An administrator will verify your payment soon.
+        <?php $flash = get_flash(); ?>
+        <?php if ($flash): ?>
+            <div class="alert alert-<?php echo e($flash['type'] === 'error' ? 'error' : 'success'); ?>">
+                <?php echo e($flash['message']); ?>
             </div>
         <?php endif; ?>
 

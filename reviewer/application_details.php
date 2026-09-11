@@ -109,8 +109,7 @@ foreach ($reviews as &$r) {
 
 // Handle reviewer status update
 $errors = [];
-$status_success = false;
-$allowed_status_ids = [3, 4, 7, 8]; // under_review, reviewed, needs_review, payment_pending
+ $allowed_status_ids = [3, 4, 7]; // under_review, reviewed, needs_review — no payment statuses
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reviewer_update_status'])) {
     validate_csrf();
@@ -144,20 +143,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reviewer_update_statu
                 WHERE application_id = :app_id
             ", ['sid' => $new_status_id, 'app_id' => $application_id]);
 
-            $status_success = true;
-
-            // Refresh application data for display
-            $application = db_fetch_one($conn, "
-                SELECT a.application_id, a.reference_number, a.submitted_at, a.updated_at, a.current_status_id, a.application_data, a.reviewer_id,
-                       s.status_code, s.status_name, s.is_final,
-                       t.type_id, t.type_code, t.type_name, t.description as type_description, t.requires_payment, t.fee_amount,
-                       u.user_id as student_id, u.full_name as student_name, u.email as student_email, u.phone as student_phone, u.department as student_department
-                FROM APPLICATIONS a
-                JOIN APPLICATION_STATUS s ON a.current_status_id = s.status_id
-                JOIN APPLICATION_TYPES t ON a.type_id = t.type_id
-                JOIN USERS u ON a.student_id = u.user_id
-                WHERE a.application_id = :app_id AND a.reviewer_id = :rid AND u.department = :reviewer_dept
-            ", ['app_id' => $application_id, 'rid' => $reviewer_id, 'reviewer_dept' => $user['DEPARTMENT']]);
+            set_flash('success', 'Application status updated successfully.');
+            redirect('reviewer/application_details.php?id=' . $application_id);
         }
     }
 }
@@ -284,8 +271,11 @@ function rec_badge($rec) {
                 <h2>Update Application Status</h2>
             </div>
 
-            <?php if ($status_success): ?>
-                <div class="alert alert-success">Status updated successfully.</div>
+            <?php $flash = get_flash(); ?>
+            <?php if ($flash): ?>
+                <div class="alert alert-<?php echo e($flash['type'] === 'error' ? 'error' : 'success'); ?>">
+                    <?php echo e($flash['message']); ?>
+                </div>
             <?php endif; ?>
             <?php if (isset($errors['general'])): ?>
                 <div class="alert alert-error"><?php echo e($errors['general']); ?></div>
@@ -303,7 +293,6 @@ function rec_badge($rec) {
                         <option value="3" <?php echo ($application['CURRENT_STATUS_ID'] == 3) ? 'selected' : ''; ?>>Under Review</option>
                         <option value="4" <?php echo ($application['CURRENT_STATUS_ID'] == 4) ? 'selected' : ''; ?>>Reviewed</option>
                         <option value="7" <?php echo ($application['CURRENT_STATUS_ID'] == 7) ? 'selected' : ''; ?>>Needs More Information</option>
-                        <option value="8" <?php echo ($application['CURRENT_STATUS_ID'] == 8) ? 'selected' : ''; ?>>Payment Pending</option>
                     </select>
                 </div>
 
@@ -447,7 +436,7 @@ function rec_badge($rec) {
                         <tbody>
                             <?php foreach ($documents as $doc): ?>
                                 <tr>
-                                    <td><?php echo e($doc['ORIGINAL_FILENAME']); ?></td>
+                                    <td><a href="<?php echo base_url($doc['FILE_PATH']); ?>" target="_blank"><?php echo e($doc['ORIGINAL_FILENAME']); ?></a></td>
                                     <td><?php echo e($doc['UPLOADED_BY_NAME']); ?></td>
                                     <td><?php echo e(number_format($doc['FILE_SIZE'] / 1024, 2)); ?> KB</td>
                                     <td><?php echo e($doc['MIME_TYPE']); ?></td>
@@ -462,7 +451,7 @@ function rec_badge($rec) {
         </div>
 
         <!-- Payment Information -->
-        <?php if ($application['REQUIRES_PAYMENT'] === 'Y'): ?>
+        <!-- <?php if ($application['REQUIRES_PAYMENT'] === 'Y'): ?>
             <div class="dashboard-section">
                 <h2>Payment Status</h2>
                 <?php if (empty($payments)): ?>
@@ -480,6 +469,7 @@ function rec_badge($rec) {
                                     <th>Status</th>
                                     <th>Verified By</th>
                                     <th>Payment Date</th>
+                                    <th>Receipt</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -491,6 +481,13 @@ function rec_badge($rec) {
                                         <td><?php echo payment_status_badge($pay['STATUS']); ?></td>
                                         <td><?php echo e($pay['VERIFIED_BY_NAME'] ?? 'Not verified'); ?></td>
                                         <td><?php echo e(format_date($pay['PAYMENT_DATE'])); ?></td>
+                                        <td>
+                                            <?php if (!empty($pay['RECEIPT_PATH'])): ?>
+                                                <a href="<?php echo base_url($pay['RECEIPT_PATH']); ?>" target="_blank" class="btn btn-small">View Receipt</a>
+                                            <?php else: ?>
+                                                N/A
+                                            <?php endif; ?>
+                                        </td>
                                     </tr>
                                 <?php endforeach; ?>
                             </tbody>
@@ -498,7 +495,7 @@ function rec_badge($rec) {
                     </div>
                 <?php endif; ?>
             </div>
-        <?php endif; ?>
+        <?php endif; ?> -->
 
         <!-- Reviews -->
         <div class="dashboard-section">

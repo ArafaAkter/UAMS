@@ -60,7 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $recommendation = trim($_POST['recommendation'] ?? '');
     $comments = trim($_POST['comments'] ?? '');
 
-    $allowed_status_ids = [3, 4, 7, 8]; // under_review, reviewed, needs_review, payment_pending
+     $allowed_status_ids = [3, 4, 7]; // under_review, reviewed, needs_review — no payment statuses
     $allowed_recs = ['approve', 'reject', 'request_info'];
 
     if (!is_numeric($new_status_id) || !in_array((int)$new_status_id, $allowed_status_ids)) {
@@ -138,6 +138,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ]);
 
         $success = true;
+
+        set_flash('success', 'Review submitted successfully! The application status has been updated.');
+        redirect('reviewer/application_details.php?id=' . $application_id);
     }
 }
 
@@ -188,13 +191,15 @@ function rec_badge($rec) {
         </div>
 
         <!-- Success/Error -->
-        <?php if ($success): ?>
-            <div class="alert alert-success">
-                Review submitted successfully! The application status has been updated.
-                <a href="<?php echo base_url('reviewer/application_details.php?id=' . $application['APPLICATION_ID']); ?>" class="btn btn-small">View Application Details</a>
+        <?php $flash = get_flash(); ?>
+        <?php if ($flash): ?>
+            <div class="alert alert-<?php echo e($flash['type'] === 'error' ? 'error' : 'success'); ?>">
+                <?php echo e($flash['message']); ?>
+                <?php if ($flash['type'] === 'success'): ?>
+                    <a href="<?php echo base_url('reviewer/application_details.php?id=' . $application['APPLICATION_ID']); ?>" class="btn btn-small">View Application Details</a>
+                <?php endif; ?>
             </div>
         <?php endif; ?>
-
         <?php if (isset($errors['general'])): ?>
             <div class="alert alert-error"><?php echo e($errors['general']); ?></div>
         <?php endif; ?>
@@ -243,7 +248,6 @@ function rec_badge($rec) {
                         <option value="3" <?php echo (($_POST['status_id'] ?? $application['CURRENT_STATUS_ID']) == 3) ? 'selected' : ''; ?>>Under Review</option>
                         <option value="4" <?php echo (($_POST['status_id'] ?? $application['CURRENT_STATUS_ID']) == 4) ? 'selected' : ''; ?>>Reviewed</option>
                         <option value="7" <?php echo (($_POST['status_id'] ?? $application['CURRENT_STATUS_ID']) == 7) ? 'selected' : ''; ?>>Needs More Information</option>
-                        <option value="8" <?php echo (($_POST['status_id'] ?? $application['CURRENT_STATUS_ID']) == 8) ? 'selected' : ''; ?>>Payment Pending</option>
                     </select>
                     <?php if (isset($errors['status_id'])): ?>
                         <span class="error-text"><?php echo e($errors['status_id']); ?></span>
@@ -283,7 +287,6 @@ function rec_badge($rec) {
                     <label style="font-weight: bold;">Before submitting, ensure you have:</label>
                     <ul style="margin: 5px 0; padding-left: 20px; color: #555;">
                         <li>Reviewed the student's <a href="<?php echo base_url('reviewer/application_details.php?id=' . $application['APPLICATION_ID'] . '#documents'); ?>" class="btn btn-small">submitted documents</a></li>
-                        <li>Checked the <a href="<?php echo base_url('reviewer/application_details.php?id=' . $application['APPLICATION_ID'] . '#payment'); ?>" class="btn btn-small">payment status</a></li>
                         <li>Reviewed the <a href="<?php echo base_url('reviewer/application_details.php?id=' . $application['APPLICATION_ID'] . '#form-data'); ?>" class="btn btn-small">application form data</a></li>
                     </ul>
                 </div>

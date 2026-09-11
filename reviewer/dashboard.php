@@ -139,12 +139,6 @@ function rec_badge($rec) {
                     <p>Review assigned applications</p>
                 </div>
             </a>
-            <a href="<?php echo base_url('reviewer/review_history.php'); ?>" class="action-card">
-                <div class="action-text">
-                    <h4>Review History</h4>
-                    <p>View past evaluations</p>
-                </div>
-            </a>
             <a href="<?php echo base_url('reviewer/profile.php'); ?>" class="action-card">
                 <div class="action-text">
                     <h4>Profile</h4>
@@ -195,38 +189,6 @@ function rec_badge($rec) {
                 </div>
             <?php endif; ?>
         </div>
-
-        <!-- Recent Reviews -->
-        <?php if (!empty($recent_reviews)): ?>
-            <div class="dashboard-section">
-                <div class="section-header">
-                    <h2>Recent Reviews</h2>
-                    <a href="<?php echo base_url('reviewer/review_history.php'); ?>" class="btn btn-small">View All</a>
-                </div>
-                <div class="table-wrapper">
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>Reference</th>
-                                <th>Type</th>
-                                <th>Recommendation</th>
-                                <th>Date</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($recent_reviews as $review): ?>
-                                <tr>
-                                    <td><?php echo e($review['REFERENCE_NUMBER']); ?></td>
-                                    <td><?php echo e($review['TYPE_NAME']); ?></td>
-                                    <td><?php echo rec_badge($review['RECOMMENDATION']); ?></td>
-                                    <td><?php echo e(format_date($review['REVIEW_DATE'])); ?></td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        <?php endif; ?>
     </div>
 </div>
 

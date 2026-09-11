@@ -151,7 +151,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $doc_id = db_last_insert_id($conn, 'seq_doc_id');
 
         if ($doc_id) {
-            $success = true;
+            set_flash('success', 'Document uploaded successfully! Your document is pending verification.');
+            redirect('student/documents.php');
         } else {
             // Clean up uploaded file if DB insert failed
             unlink($upload_dir . $stored_filename);
@@ -230,12 +231,12 @@ function verification_badge($status) {
                 <h2>Upload New Document</h2>
             </div>
 
-            <?php if ($success): ?>
-                <div class="alert alert-success">
-                    Document uploaded successfully! Your document is pending verification.
+            <?php $flash = get_flash(); ?>
+            <?php if ($flash): ?>
+                <div class="alert alert-<?php echo e($flash['type'] === 'error' ? 'error' : 'success'); ?>">
+                    <?php echo e($flash['message']); ?>
                 </div>
             <?php endif; ?>
-
             <?php if (isset($errors['general'])): ?>
                 <div class="alert alert-error"><?php echo e($errors['general']); ?></div>
             <?php endif; ?>
