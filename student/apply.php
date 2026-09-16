@@ -162,6 +162,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $selected_type) {
                 'data' => $json_data
             ]);
 
+            oci_commit($conn);
+
             $new_app_id = db_last_insert_id($conn, 'seq_app_id');
 
             if ($new_app_id) {
@@ -184,33 +186,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $selected_type) {
                         $errors['general'] = 'Failed to save payment screenshot. Please try again.';
                         $payment_saved = false;
                     } else {
-                        // Insert payment record (auto-verified for simulated payment)
-                        $sql = "INSERT INTO PAYMENTS (application_id, amount, payment_method, transaction_ref, payment_date, verified_by, status, receipt_path)
-                                VALUES (:app_id, :amount, :method, :txn_ref, SYSDATE, :verified_by, 'verified', :receipt_path)";
+                        // Insert payment record with PENDING status (admin will verify)
+                        $sql = "INSERT INTO PAYMENTS (application_id, amount, payment_method, transaction_ref, payment_date, status, receipt_path)
+                                VALUES (:app_id, :amount, :method, :txn_ref, SYSDATE, 'pending', :receipt_path)";
                         db_query($conn, $sql, [
                             'app_id' => $new_app_id,
                             'amount' => $selected_type['FEE_AMOUNT'],
                             'method' => 'online',
                             'txn_ref' => 'UAMS-' . $reference_number,
-                            'verified_by' => $student_id,
                             'receipt_path' => $receipt_path
                         ]);
 
-                        // Also insert payment screenshot into DOCUMENTS so reviewer sees it in document list
-                        $finfo = finfo_open(FILEINFO_MIME_TYPE);
-                        $mime_type = finfo_file($finfo, $upload_dir . $stored_filename);
-                        finfo_close($finfo);
-                        $sql = "INSERT INTO DOCUMENTS (application_id, original_filename, stored_filename, file_path, file_size, mime_type, uploaded_by, verification_status)
-                                VALUES (:app_id, :orig_name, :stored_name, :file_path, :file_size, :mime_type, :uploaded_by, 'approved')";
-                        db_query($conn, $sql, [
-                            'app_id' => $new_app_id,
-                            'orig_name' => 'Payment Screenshot - ' . $original_filename,
-                            'stored_name' => $stored_filename,
-                            'file_path' => $receipt_path,
-                            'file_size' => $screenshot_size,
-                            'mime_type' => $mime_type,
-                            'uploaded_by' => $student_id
-                        ]);
+                        oci_commit($conn);
                     }
                 }
 
@@ -236,6 +223,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $selected_type) {
                             'rid' => $reviewer['USER_ID'],
                             'app_id' => $new_app_id
                         ]);
+
+                        oci_commit($conn);
                     }
 
                     // Insert initial status history record
@@ -248,10 +237,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $selected_type) {
                         'sid' => $student_id
                     ]);
 
+                    oci_commit($conn);
+
                     set_flash('success', 'Application submitted successfully! Reference: ' . $reference_number);
                     redirect('student/my_applications.php');
                 } else {
                     db_query($conn, "DELETE FROM APPLICATIONS WHERE application_id = :app_id", ['app_id' => $new_app_id]);
+                    oci_commit($conn);
                 }
             } else {
                 $errors['general'] = 'Failed to create application. Please try again.';
@@ -353,10 +345,10 @@ db_close($conn);
                         </div>
                     <?php endif; ?>
 
-                    <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
-                        <p style="color: #666; font-size: 0.9rem; margin-bottom: 15px;">
+                    <div style="margin-top: 30px; padding-top: 20px;">
+                        <!-- <p style="color: #666; font-size: 0.9rem; margin-bottom: 15px;">
                             <strong>Note:</strong> <?php echo $selected_type['REQUIRES_PAYMENT'] === 'Y' ? 'Your payment screenshot will be verified automatically upon submission.' : 'Document upload is not yet available. You will be able to upload required documents after submission.'; ?>
-                        </p>
+                        </p> -->
                         <button type="submit" class="btn btn-primary btn-block">Submit Application</button>
                     </div>
                 </form>

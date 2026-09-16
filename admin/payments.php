@@ -45,6 +45,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_payment'])) {
             'pay_id' => $payment_id
         ]);
 
+        oci_commit($conn);
+
         if (db_affected_rows($conn, $stid) > 0) {
             set_flash('success', 'Payment status updated successfully.');
         } else {
@@ -233,6 +235,7 @@ foreach ($payments as $p) {
                                 <th>Status</th>
                                 <th>Verified By</th>
                                 <th>Date</th>
+                                <th>Proof</th>
                                 <th>Action</th>
                             </tr>
                         </thead>
@@ -248,6 +251,13 @@ foreach ($payments as $p) {
                                     <td><?php echo payment_status_badge($pay['STATUS']); ?></td>
                                     <td><?php echo e($pay['VERIFIED_BY_NAME'] ?? 'Not verified'); ?></td>
                                     <td><?php echo e(format_date($pay['CREATED_AT'])); ?></td>
+                                    <td>
+                                        <?php if (!empty($pay['RECEIPT_PATH'])): ?>
+                                            <a href="<?php echo base_url($pay['RECEIPT_PATH']); ?>" target="_blank" class="btn btn-small">View Proof</a>
+                                        <?php else: ?>
+                                            N/A
+                                        <?php endif; ?>
+                                    </td>
                                     <td>
                                         <a href="<?php echo base_url('admin/payments.php?action=edit&id=' . $pay['PAYMENT_ID']); ?>" class="btn btn-small btn-primary">Manage</a>
                                     </td>

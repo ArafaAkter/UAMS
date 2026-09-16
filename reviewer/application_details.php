@@ -80,19 +80,6 @@ $documents = db_fetch_all($conn, "
     ORDER BY d.uploaded_at DESC
 ", ['app_id' => $application_id]);
 
-// Fetch payment info if payment is required
-$payments = [];
-if ($application['REQUIRES_PAYMENT'] === 'Y') {
-    $payments = db_fetch_all($conn, "
-        SELECT p.payment_id, p.amount, p.payment_method, p.transaction_ref, p.payment_date, p.status, p.receipt_path,
-               v.full_name as verified_by_name
-        FROM PAYMENTS p
-        LEFT JOIN USERS v ON p.verified_by = v.user_id
-        WHERE p.application_id = :app_id
-        ORDER BY p.created_at DESC
-    ", ['app_id' => $application_id]);
-}
-
 // Fetch existing reviews for this application
 $reviews = db_fetch_all($conn, "
     SELECT r.review_id, r.recommendation, r.comments, r.review_date,
@@ -143,6 +130,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reviewer_update_statu
                 WHERE application_id = :app_id
             ", ['sid' => $new_status_id, 'app_id' => $application_id]);
 
+            oci_commit($conn);
+
             set_flash('success', 'Application status updated successfully.');
             redirect('reviewer/application_details.php?id=' . $application_id);
         }
@@ -181,22 +170,6 @@ function doc_status_badge($status) {
         'approved' => 'Approved',
         'rejected' => 'Rejected',
         'needs_correction' => 'Needs Correction'
-    ];
-    $cls = $map[$status] ?? 'badge-gray';
-    $label = $labels[$status] ?? ucfirst($status);
-    return '<span class="status-badge ' . $cls . '">' . e($label) . '</span>';
-}
-
-function payment_status_badge($status) {
-    $map = [
-        'pending' => 'badge-warning',
-        'verified' => 'badge-success',
-        'failed' => 'badge-danger'
-    ];
-    $labels = [
-        'pending' => 'Pending',
-        'verified' => 'Paid',
-        'failed' => 'Failed'
     ];
     $cls = $map[$status] ?? 'badge-gray';
     $label = $labels[$status] ?? ucfirst($status);
@@ -260,9 +233,9 @@ function rec_badge($rec) {
         <div style="margin-bottom: 20px;">
             <a href="<?php echo base_url('reviewer/applications.php'); ?>" class="btn btn-small">Back to Applications</a>
             <a href="<?php echo base_url('reviewer/dashboard.php'); ?>" class="btn btn-small">Back to Dashboard</a>
-            <?php if (empty($reviews)): ?>
+            <!-- <?php if (empty($reviews)): ?>
                 <a href="<?php echo base_url('reviewer/review_application.php?id=' . $application['APPLICATION_ID']); ?>" class="btn btn-small btn-primary">Start Review</a>
-            <?php endif; ?>
+            <?php endif; ?> -->
         </div>
 
         <!-- Reviewer Status Update -->
@@ -498,7 +471,7 @@ function rec_badge($rec) {
         <?php endif; ?> -->
 
         <!-- Reviews -->
-        <div class="dashboard-section">
+        <!-- <div class="dashboard-section">
             <h2>Review History</h2>
             <?php if (empty($reviews)): ?>
                 <div class="empty-state">
@@ -528,7 +501,7 @@ function rec_badge($rec) {
                     </table>
                 </div>
             <?php endif; ?>
-        </div>
+        </div> -->
 
         <!-- Application Status History -->
         <div class="dashboard-section">

@@ -85,7 +85,7 @@ $conn = db_connect();
 
 // Fetch payments for the student's applications
 $payments = db_fetch_all($conn, "
-    SELECT p.payment_id, p.amount, p.payment_method, p.transaction_ref, p.payment_date, p.status, p.updated_at,
+    SELECT p.payment_id, p.amount, p.payment_method, p.transaction_ref, p.payment_date, p.status, p.updated_at, p.receipt_path,
            a.application_id, a.reference_number,
            t.type_name, t.fee_amount
     FROM PAYMENTS p
@@ -282,6 +282,7 @@ $allowed_methods = [
                                 <th>Method</th>
                                 <th>Transaction Ref</th>
                                 <th>Status</th>
+                                <th>Proof</th>
                                 <th>Paid/Updated</th>
                             </tr>
                         </thead>
@@ -294,6 +295,15 @@ $allowed_methods = [
                                     <td><?php echo e($pay['PAYMENT_METHOD']); ?></td>
                                     <td><?php echo e($pay['TRANSACTION_REF'] ?? 'N/A'); ?></td>
                                     <td><?php echo payment_status_badge($pay['STATUS']); ?></td>
+                                    <td>
+                                        <?php if ($pay['STATUS'] === 'verified' && !empty($pay['RECEIPT_PATH'])): ?>
+                                            <a href="<?php echo base_url($pay['RECEIPT_PATH']); ?>" target="_blank" class="btn btn-small">View Proof</a>
+                                        <?php elseif ($pay['STATUS'] === 'pending'): ?>
+                                            <span style="color: #666;">Pending verification</span>
+                                        <?php else: ?>
+                                            N/A
+                                        <?php endif; ?>
+                                    </td>
                                     <td><?php echo e(format_date($pay['UPDATED_AT'])); ?></td>
                                 </tr>
                             <?php endforeach; ?>

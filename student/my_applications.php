@@ -72,12 +72,12 @@ function status_badge($code, $name) {
                 <h2>All Applications</h2>
                 <div style="display: flex; gap: 10px; align-items: center;">
                     <a href="<?php echo base_url('student/my_applications.php'); ?>" class="btn btn-small <?php echo empty($status_filter) ? 'btn-primary' : ''; ?>">All</a>
-                    <a href="?status=2" class="btn btn-small">Submitted</a>
+                    <!-- <a href="?status=2" class="btn btn-small">Submitted</a>
                     <a href="?status=3" class="btn btn-small">Under Review</a>
                     <a href="?status=4" class="btn btn-small">Reviewed</a>
                     <a href="?status=5" class="btn btn-small">Approved</a>
                     <a href="?status=6" class="btn btn-small">Rejected</a>
-                    <a href="?status=9" class="btn btn-small">Completed</a>
+                    <a href="?status=9" class="btn btn-small">Completed</a> -->
                 </div>
             </div>
 

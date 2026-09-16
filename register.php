@@ -96,6 +96,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]
         );
 
+        oci_commit($conn);
+
         $user_id = db_last_insert_id($conn, 'seq_user_id');
 
         if ($user_id) {

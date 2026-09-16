@@ -59,6 +59,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_type'])) {
                     'active' => $is_active
                 ]);
 
+                oci_commit($conn);
+
                 if (db_affected_rows($conn, $stid) > 0) {
                     set_flash('success', 'Application type added successfully.');
                     redirect('admin/settings.php');
@@ -81,6 +83,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_type'])) {
                     'active' => $is_active,
                     'tid' => $type_id
                 ]);
+
+                oci_commit($conn);
 
                 if (db_affected_rows($conn, $stid) > 0) {
                     set_flash('success', 'Application type updated successfully.');
@@ -124,6 +128,7 @@ if (isset($_GET['edit']) && is_numeric($_GET['edit'])) {
         $in_use = db_fetch_value($conn, "SELECT COUNT(*) FROM APPLICATIONS WHERE type_id = :tid", ['tid' => $target_id]);
         if ($in_use == 0) {
             db_query($conn, "DELETE FROM APPLICATION_TYPES WHERE type_id = :tid", ['tid' => $target_id]);
+            oci_commit($conn);
             set_flash('success', 'Application type deleted successfully.');
         } else {
             set_flash('error', 'Cannot delete: this type is used by existing applications.');

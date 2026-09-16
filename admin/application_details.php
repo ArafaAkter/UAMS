@@ -87,6 +87,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
                     WHERE application_id = :app_id
                 ", ['sid' => $new_status_id, 'app_id' => $application_id]);
 
+                // Commit the transaction
+                oci_commit($conn);
+
                 set_flash('success', 'Application status updated successfully.');
                 redirect('admin/application_details.php?id=' . $application_id);
             }
@@ -103,25 +106,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_document_statu
 
     $allowed_doc_statuses = ['pending', 'approved', 'rejected', 'needs_correction'];
 
-    if (!is_numeric($document_id) || !in_array($new_doc_status, $allowed_doc_statuses)) {
-        $errors['document'] = 'Invalid document or status selected.';
-    } else {
-        $document = db_fetch_one($conn, "SELECT document_id FROM DOCUMENTS WHERE document_id = :did AND application_id = :app_id", ['did' => $document_id, 'app_id' => $application_id]);
-        if (!$document) {
-            $errors['document'] = 'Document not found for this application.';
+if (!is_numeric($document_id) || !in_array($new_doc_status, $allowed_doc_statuses)) {
+            $errors['document'] = 'Invalid document or status selected.';
         } else {
-            db_query($conn, "
-                UPDATE DOCUMENTS SET verification_status = :status
-                WHERE document_id = :did
-            ", [
-                'status' => $new_doc_status,
-                'did' => $document_id
-            ]);
+            $document = db_fetch_one($conn, "SELECT document_id FROM DOCUMENTS WHERE document_id = :did AND application_id = :app_id", ['did' => $document_id, 'app_id' => $application_id]);
+            if (!$document) {
+                $errors['document'] = 'Document not found for this application.';
+            } else {
+                db_query($conn, "
+                    UPDATE DOCUMENTS SET verification_status = :status
+                    WHERE document_id = :did
+                ", [
+                    'status' => $new_doc_status,
+                    'did' => $document_id
+                ]);
 
-            set_flash('success', 'Document status updated successfully.');
-            redirect('admin/application_details.php?id=' . $application_id);
+                oci_commit($conn);
+
+                set_flash('success', 'Document status updated successfully.');
+                redirect('admin/application_details.php?id=' . $application_id);
+            }
         }
-    }
 }
 
 // Decode application data
@@ -191,13 +196,13 @@ foreach ($reviews as &$r) {
 $has_review = !empty($reviews);
 
 // Fetch statuses for dropdown.
-// When a review exists, admin can only set final/approval statuses.
-// When no review exists, admin can set review-phase statuses to move the workflow along.
-if ($has_review) {
-    $all_statuses = db_fetch_all($conn, "SELECT status_id, status_code, status_name FROM APPLICATION_STATUS WHERE is_active = 'Y' AND status_code IN ('approved', 'rejected', 'payment_pending', 'completed', 'closed') ORDER BY sort_order");
-} else {
-    $all_statuses = db_fetch_all($conn, "SELECT status_id, status_code, status_name FROM APPLICATION_STATUS WHERE is_active = 'Y' AND status_code IN ('under_review', 'needs_review') ORDER BY sort_order");
-}
+ // When a review exists, admin can only set final/approval statuses.
+ // When no review exists, admin can set review-phase statuses to move the workflow along.
+ if ($has_review) {
+     $all_statuses = db_fetch_all($conn, "SELECT status_id, status_code, status_name FROM APPLICATION_STATUS WHERE is_active = 'Y' AND status_code IN ('approved', 'rejected', 'payment_pending', 'completed', 'closed') ORDER BY sort_order");
+ } else {
+     $all_statuses = db_fetch_all($conn, "SELECT status_id, status_code, status_name FROM APPLICATION_STATUS WHERE is_active = 'Y' AND status_code IN ('under_review', 'needs_review', 'approved', 'rejected') ORDER BY sort_order");
+ }
 
 db_close($conn);
 
@@ -431,7 +436,7 @@ function payment_status_badge($status) {
                     <div class="table-wrapper">
                         <table class="data-table">
                             <thead>
-                                <tr><th>Amount</th><th>Method</th><th>Transaction Ref</th><th>Status</th><th>Verified By</th><th>Date</th></tr>
+                                <tr><th>Amount</th><th>Method</th><th>Transaction Ref</th><th>Status</th><th>Verified By</th><th>Date</th><th>Proof</th></tr>
                             </thead>
                             <tbody>
                                 <?php foreach ($payments as $pay): ?>
@@ -442,6 +447,13 @@ function payment_status_badge($status) {
                                         <td><?php echo payment_status_badge($pay['STATUS']); ?></td>
                                         <td><?php echo e($pay['VERIFIED_BY_NAME'] ?? 'Not verified'); ?></td>
                                         <td><?php echo e(format_date($pay['PAYMENT_DATE'])); ?></td>
+                                        <td>
+                                            <?php if (!empty($pay['RECEIPT_PATH'])): ?>
+                                                <a href="<?php echo base_url($pay['RECEIPT_PATH']); ?>" target="_blank" class="btn btn-small">View Proof</a>
+                                            <?php else: ?>
+                                                N/A
+                                            <?php endif; ?>
+                                        </td>
                                     </tr>
                                 <?php endforeach; ?>
                             </tbody>
@@ -484,11 +496,11 @@ function payment_status_badge($status) {
             </div>
 
             <?php if (!$has_review): ?>
-                <div class="alert alert-info" style="margin-bottom: 16px;">
+                <!-- <div class="alert alert-info" style="margin-bottom: 16px;">
                     <strong>Review Pending:</strong> A reviewer has not yet submitted their review for this application.
                     The available statuses are limited to review-phase transitions. Final statuses (Approved, Rejected,
                     Payment Pending, Completed) will become available once a review is submitted.
-                </div>
+                </div> -->
             <?php else: ?>
                 <div class="alert alert-info" style="margin-bottom: 16px;">
                     <strong>Review Completed:</strong> A review has been submitted. You can now set the final application status.

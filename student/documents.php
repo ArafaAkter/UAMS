@@ -27,6 +27,40 @@ $applications = db_fetch_all($conn, "
     ORDER BY a.created_at DESC
 ", ['sid' => $student_id]);
 
+// Handle document deletion
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_document'])) {
+    validate_csrf();
+
+    $document_id = trim($_POST['document_id'] ?? '');
+
+    if (!is_numeric($document_id)) {
+        $errors['general'] = 'Invalid document ID.';
+    } else {
+        $doc = db_fetch_one($conn, "
+            SELECT d.document_id, d.file_path, d.stored_filename
+            FROM DOCUMENTS d
+            JOIN APPLICATIONS a ON d.application_id = a.application_id
+            WHERE d.document_id = :doc_id AND a.student_id = :sid
+        ", ['doc_id' => $document_id, 'sid' => $student_id]);
+
+        if (!$doc) {
+            $errors['general'] = 'Document not found or you do not have permission to delete it.';
+        } else {
+            $upload_dir = __DIR__ . '/../uploads/documents/';
+            $file_path = $upload_dir . $doc['STORED_FILENAME'];
+
+            db_query($conn, "DELETE FROM DOCUMENTS WHERE document_id = :doc_id", ['doc_id' => $document_id]);
+
+            if (file_exists($file_path)) {
+                unlink($file_path);
+            }
+
+            set_flash('success', 'Document deleted successfully. You can now upload the correct document.');
+            redirect('student/documents.php');
+        }
+    }
+}
+
 // Handle file upload
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     validate_csrf();
@@ -308,6 +342,7 @@ function verification_badge($status) {
                                 <th>MIME Type</th>
                                 <th>Status</th>
                                 <th>Uploaded</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -315,11 +350,19 @@ function verification_badge($status) {
                                 <tr>
                                     <td><?php echo e($doc['REFERENCE_NUMBER']); ?></td>
                                     <td><?php echo e($doc['TYPE_NAME']); ?></td>
-                                    <td><?php echo e($doc['ORIGINAL_FILENAME']); ?></td>
+                                    <td><a href="<?php echo base_url($doc['FILE_PATH']); ?>" target="_blank"><?php echo e($doc['ORIGINAL_FILENAME']); ?></a></td>
                                     <td><?php echo e(format_file_size($doc['FILE_SIZE'])); ?></td>
                                     <td><?php echo e($doc['MIME_TYPE']); ?></td>
                                     <td><?php echo verification_badge($doc['VERIFICATION_STATUS'] ?? 'pending'); ?></td>
                                     <td><?php echo e(format_date($doc['UPLOADED_AT'])); ?></td>
+                                    <td>
+                                        <form method="POST" action="<?php echo base_url('student/documents.php'); ?>" onsubmit="return confirm('Are you sure you want to delete this document? This action cannot be undone.');" style="display:inline;">
+                                            <input type="hidden" name="csrf_token" value="<?php echo e(csrf_token()); ?>">
+                                            <input type="hidden" name="delete_document" value="1">
+                                            <input type="hidden" name="document_id" value="<?php echo e($doc['DOCUMENT_ID']); ?>">
+                                            <button type="submit" class="btn btn-small btn-danger" title="Delete document">Delete</button>
+                                        </form>
+                                    </td>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>

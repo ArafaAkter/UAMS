@@ -335,8 +335,10 @@ function rec_badge($rec) {
                                         <td><?php echo e($pay['VERIFIED_BY_NAME'] ?? 'Not verified'); ?></td>
                                         <td><?php echo e(format_date($pay['PAYMENT_DATE'])); ?></td>
                                         <td>
-                                            <?php if (!empty($pay['RECEIPT_PATH'])): ?>
+                                            <?php if ($pay['STATUS'] === 'verified' && !empty($pay['RECEIPT_PATH'])): ?>
                                                 <a href="<?php echo base_url($pay['RECEIPT_PATH']); ?>" target="_blank" class="btn btn-small">View Receipt</a>
+                                            <?php elseif ($pay['STATUS'] === 'pending'): ?>
+                                                <span style="color: #666;">Pending verification</span>
                                             <?php else: ?>
                                                 N/A
                                             <?php endif; ?>

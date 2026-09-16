@@ -57,6 +57,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
             'b_user_id' => $user_id
         ]);
 
+        oci_commit($conn);
+
         set_flash('success', 'Profile updated successfully.');
         redirect('profile.php');
     }
@@ -95,6 +97,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
             SET password_hash = :b_password_hash, updated_at = SYSDATE
             WHERE user_id = :b_user_id
         ", ['b_password_hash' => $password_hash, 'b_user_id' => $user_id]);
+
+        oci_commit($conn);
 
         set_flash('success', 'Password changed successfully.');
         redirect('profile.php');
