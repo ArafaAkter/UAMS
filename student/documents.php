@@ -267,9 +267,9 @@ function verification_badge($status) {
 
             <?php $flash = get_flash(); ?>
             <?php if ($flash): ?>
-                <div class="alert alert-<?php echo e($flash['type'] === 'error' ? 'error' : 'success'); ?>">
+                <!-- <div class="alert alert-<?php echo e($flash['type'] === 'error' ? 'error' : 'success'); ?>">
                     <?php echo e($flash['message']); ?>
-                </div>
+                </div> -->
             <?php endif; ?>
             <?php if (isset($errors['general'])): ?>
                 <div class="alert alert-error"><?php echo e($errors['general']); ?></div>

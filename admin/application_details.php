@@ -61,14 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
         if (!$status) {
             $errors['general'] = 'Invalid status selected.';
          } else {
-            // Workflow enforcement: final statuses require a prior review
-            $final_statuses = [5, 6, 8, 9, 10]; // approved, rejected, payment_pending, completed, closed
-            if (in_array((int)$new_status_id, $final_statuses)) {
-                $review_exists = db_fetch_value($conn, "SELECT COUNT(*) FROM REVIEWS WHERE application_id = :app_id", ['app_id' => $application_id]);
-                if (!$review_exists) {
-                    $errors['general'] = 'A review must be submitted by a reviewer before setting a final status. Please wait for the reviewer to complete their review.';
-                }
-            }
+            // No review requirement for Admin to set Approved/Rejected
             if (empty($errors)) {
                 // Insert status history
                 db_query($conn, "
@@ -195,14 +188,8 @@ foreach ($reviews as &$r) {
 
 $has_review = !empty($reviews);
 
-// Fetch statuses for dropdown.
- // When a review exists, admin can only set final/approval statuses.
- // When no review exists, admin can set review-phase statuses to move the workflow along.
- if ($has_review) {
-     $all_statuses = db_fetch_all($conn, "SELECT status_id, status_code, status_name FROM APPLICATION_STATUS WHERE is_active = 'Y' AND status_code IN ('approved', 'rejected', 'payment_pending', 'completed', 'closed') ORDER BY sort_order");
- } else {
-     $all_statuses = db_fetch_all($conn, "SELECT status_id, status_code, status_name FROM APPLICATION_STATUS WHERE is_active = 'Y' AND status_code IN ('under_review', 'needs_review', 'approved', 'rejected') ORDER BY sort_order");
- }
+ // Fetch statuses for dropdown - only Approved and Rejected
+ $all_statuses = db_fetch_all($conn, "SELECT status_id, status_code, status_name FROM APPLICATION_STATUS WHERE is_active = 'Y' AND status_code IN ('approved', 'rejected') ORDER BY sort_order");
 
 db_close($conn);
 
@@ -464,7 +451,7 @@ function payment_status_badge($status) {
         <?php endif; ?>
 
         <!-- Reviews -->
-        <div class="dashboard-section">
+        <!-- <div class="dashboard-section">
             <h2>Reviewer Recommendations</h2>
             <?php if (empty($reviews)): ?>
                 <div class="empty-state"><p>No reviews submitted yet.</p></div>
@@ -487,7 +474,7 @@ function payment_status_badge($status) {
                     </table>
                 </div>
             <?php endif; ?>
-        </div>
+        </div> -->
 
          <!-- Admin Status Update -->
         <div class="dashboard-section">
@@ -497,13 +484,11 @@ function payment_status_badge($status) {
 
             <?php if (!$has_review): ?>
                 <!-- <div class="alert alert-info" style="margin-bottom: 16px;">
-                    <strong>Review Pending:</strong> A reviewer has not yet submitted their review for this application.
-                    The available statuses are limited to review-phase transitions. Final statuses (Approved, Rejected,
-                    Payment Pending, Completed) will become available once a review is submitted.
+                    <strong>Review Not Required:</strong> Admin can set <strong>Approved</strong> or <strong>Rejected</strong> at any time. Reviewer review is optional.
                 </div> -->
             <?php else: ?>
                 <div class="alert alert-info" style="margin-bottom: 16px;">
-                    <strong>Review Completed:</strong> A review has been submitted. You can now set the final application status.
+                    <strong>Review Available:</strong> A reviewer has submitted their review. Admin can set <strong>Approved</strong> or <strong>Rejected</strong>.
                 </div>
             <?php endif; ?>
 

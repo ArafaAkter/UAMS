@@ -397,7 +397,7 @@ function rec_badge($rec) {
         </div>
 
         <!-- Reviewer Recommendations -->
-        <div class="dashboard-section">
+        <!-- <div class="dashboard-section">
             <h2>Reviewer Recommendations</h2>
             <?php if (empty($reviews)): ?>
                 <div class="empty-state">
@@ -427,7 +427,7 @@ function rec_badge($rec) {
                     </table>
                 </div>
             <?php endif; ?>
-        </div>
+        </div> -->
 
         <!-- Status History -->
         <div class="dashboard-section">
